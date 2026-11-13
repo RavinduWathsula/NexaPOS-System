@@ -88,3 +88,4 @@ export const updateDeviceStatusSchema = z.object({
   reason: z.string().min(2, 'A reason for status change is required'),
   referenceId: z.string().optional(),
 })
+

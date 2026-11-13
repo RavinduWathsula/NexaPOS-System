@@ -110,3 +110,4 @@ npm run client
 
 ## 📄 License
 MIT License. Developed for NexaPOS Enterprise.
+
