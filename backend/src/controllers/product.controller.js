@@ -51,3 +51,4 @@ export async function removeProduct(req, res, next) {
     next(error)
   }
 }
+

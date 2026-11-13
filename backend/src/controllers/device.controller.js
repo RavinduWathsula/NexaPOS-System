@@ -68,3 +68,4 @@ export async function changeDeviceStatus(req, res, next) {
     next(error)
   }
 }
+

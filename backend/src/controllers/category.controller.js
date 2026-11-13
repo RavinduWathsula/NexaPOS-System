@@ -51,3 +51,4 @@ export async function removeCategory(req, res, next) {
     next(error)
   }
 }
+
