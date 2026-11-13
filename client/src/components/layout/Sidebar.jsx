@@ -23,49 +23,140 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/utils/cn'
 
 export const NAVIGATION_GROUPS = [
   {
     title: 'Core',
     items: [
-      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-      { name: 'POS Terminal', path: '/pos', icon: Smartphone, highlight: true, badge: 'Live' },
+      {
+        name: 'Dashboard',
+        path: '/',
+        icon: LayoutDashboard,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER'],
+      },
+      {
+        name: 'POS Terminal',
+        path: '/pos',
+        icon: Smartphone,
+        highlight: true,
+        badge: 'Live',
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER'],
+      },
     ],
   },
   {
     title: 'Catalog & IMEI Tracking',
     items: [
-      { name: 'Products', path: '/products', icon: Package },
-      { name: 'Categories', path: '/categories', icon: FolderTree },
-      { name: 'Brands', path: '/brands', icon: Tag },
-      { name: 'IMEI & Devices', path: '/imei-devices', icon: ScanLine, badge: 'Unique' },
-      { name: 'Inventory', path: '/inventory', icon: Boxes },
+      {
+        name: 'Products',
+        path: '/products',
+        icon: Package,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
+      {
+        name: 'Categories',
+        path: '/categories',
+        icon: FolderTree,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
+      {
+        name: 'Brands',
+        path: '/brands',
+        icon: Tag,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
+      {
+        name: 'IMEI & Devices',
+        path: '/imei-devices',
+        icon: ScanLine,
+        badge: 'Unique',
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER', 'TECHNICIAN'],
+      },
+      {
+        name: 'Inventory',
+        path: '/inventory',
+        icon: Boxes,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
     ],
   },
   {
     title: 'Sales & Services',
     items: [
-      { name: 'Sales & Invoices', path: '/sales-invoices', icon: Receipt },
-      { name: 'Customers', path: '/customers', icon: Users },
-      { name: 'Warranty Management', path: '/warranty-management', icon: ShieldCheck },
-      { name: 'Repair Management', path: '/repair-management', icon: Wrench, badge: '4 Due', badgeColor: 'bg-amber-500' },
+      {
+        name: 'Sales & Invoices',
+        path: '/sales-invoices',
+        icon: Receipt,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER'],
+      },
+      {
+        name: 'Customers',
+        path: '/customers',
+        icon: Users,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER'],
+      },
+      {
+        name: 'Warranty Management',
+        path: '/warranty-management',
+        icon: ShieldCheck,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'TECHNICIAN'],
+      },
+      {
+        name: 'Repair Management',
+        path: '/repair-management',
+        icon: Wrench,
+        badge: '4 Due',
+        badgeColor: 'bg-amber-500',
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'TECHNICIAN'],
+      },
     ],
   },
   {
     title: 'Procurement',
     items: [
-      { name: 'Purchases', path: '/purchases', icon: ShoppingBag },
-      { name: 'Suppliers', path: '/suppliers', icon: Truck },
+      {
+        name: 'Purchases',
+        path: '/purchases',
+        icon: ShoppingBag,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
+      {
+        name: 'Suppliers',
+        path: '/suppliers',
+        icon: Truck,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'STOCK_KEEPER'],
+      },
     ],
   },
   {
     title: 'Administration',
     items: [
-      { name: 'Employees', path: '/employees', icon: UserCheck },
-      { name: 'Reports & Analytics', path: '/reports-analytics', icon: BarChart3 },
-      { name: 'Expenses & Finance', path: '/expenses-finance', icon: DollarSign },
-      { name: 'Settings', path: '/settings', icon: Settings },
+      {
+        name: 'Employees',
+        path: '/employees',
+        icon: UserCheck,
+        allowedRoles: ['SUPER_ADMIN'],
+      },
+      {
+        name: 'Reports & Analytics',
+        path: '/reports-analytics',
+        icon: BarChart3,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER'],
+      },
+      {
+        name: 'Expenses & Finance',
+        path: '/expenses-finance',
+        icon: DollarSign,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER'],
+      },
+      {
+        name: 'Settings',
+        path: '/settings',
+        icon: Settings,
+        allowedRoles: ['SUPER_ADMIN'],
+      },
     ],
   },
 ]
@@ -77,6 +168,17 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const location = useLocation()
+  const { user } = useAuthStore()
+
+  // Filter groups and items based on active user role
+  const filteredGroups = NAVIGATION_GROUPS.map((group) => {
+    const visibleItems = group.items.filter((item) => {
+      if (!user) return false
+      if (user.role === 'SUPER_ADMIN') return true
+      return item.allowedRoles.includes(user.role)
+    })
+    return { ...group, items: visibleItems }
+  }).filter((group) => group.items.length > 0)
 
   return (
     <>
@@ -92,12 +194,8 @@ export function Sidebar({
       <aside
         className={cn(
           'fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-white dark:bg-dark-card border-r border-slate-200 dark:border-dark-border transition-all duration-300 ease-in-out',
-          // Desktop collapse widths
           isCollapsed ? 'w-20' : 'w-64',
-          // Mobile responsive slide-in
-          isMobileOpen
-            ? 'translate-x-0 w-64'
-            : '-translate-x-full lg:translate-x-0'
+          isMobileOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'
         )}
       >
         {/* Brand Logo Header */}
@@ -123,7 +221,6 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Mobile Close Button */}
           <button
             type="button"
             onClick={onCloseMobile}
@@ -135,7 +232,7 @@ export function Sidebar({
 
         {/* Navigation List */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-          {NAVIGATION_GROUPS.map((group) => (
+          {filteredGroups.map((group) => (
             <div key={group.title} className="space-y-1">
               {(!isCollapsed || isMobileOpen) && (
                 <h4 className="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
@@ -169,7 +266,6 @@ export function Sidebar({
                       isCollapsed && !isMobileOpen && 'justify-center px-0'
                     )}
                   >
-                    {/* Active Bar indicator */}
                     {isActive && !item.highlight && (
                       <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-brand-600 dark:bg-brand-400" />
                     )}
@@ -212,7 +308,7 @@ export function Sidebar({
 
         {/* Footer Collapse Toggle (Desktop) */}
         <div className="hidden lg:flex items-center justify-between p-3 border-t border-slate-100 dark:border-dark-border">
-          {(!isCollapsed || isMobileOpen) ? (
+          {!isCollapsed || isMobileOpen ? (
             <div className="flex items-center gap-2 px-2 text-xs text-slate-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>System Online (LKR)</span>
@@ -229,15 +325,10 @@ export function Sidebar({
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-dark-surface transition-colors"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
       </aside>
     </>
   )
 }
-

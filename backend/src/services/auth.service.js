@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { prisma } from '../config/prisma.js'
 import { env } from '../config/env.js'
 
@@ -62,8 +63,7 @@ export async function loginUser(email, password) {
     { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
   )
 
-  // Strip password hash from returned object
-  const { password: _, ...userWithoutPassword } = user
+  const { password: _, resetPasswordToken: __, resetPasswordExpires: ___, ...userWithoutPassword } = user
 
   return {
     user: {
@@ -129,10 +129,105 @@ export async function getUserProfile(userId) {
     throw error
   }
 
-  const { password: _, ...userWithoutPassword } = user
+  const { password: _, resetPasswordToken: __, resetPasswordExpires: ___, ...userWithoutPassword } = user
   return {
     ...userWithoutPassword,
     permissions: user.role.rolePermissions.map((rp) => rp.permission.code),
   }
 }
 
+export async function changeUserPassword(userId, currentPassword, newPassword) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user) {
+    const error = new Error('User not found.')
+    error.statusCode = 404
+    throw error
+  }
+
+  const isCurrentValid = await bcrypt.compare(currentPassword, user.password)
+  if (!isCurrentValid) {
+    const error = new Error('Current password does not match records.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const isSamePassword = await bcrypt.compare(newPassword, user.password)
+  if (isSamePassword) {
+    const error = new Error('New password cannot be the same as your current password.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  })
+
+  return { message: 'Password has been changed successfully.' }
+}
+
+export async function forgotUserPassword(email) {
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+  })
+
+  // To prevent user enumeration attacks, always respond neutrally if email not found
+  if (!user || !user.isActive) {
+    return {
+      message: 'If the provided email belongs to an active staff account, a reset token has been issued.',
+      resetToken: null,
+    }
+  }
+
+  // Generate secure cryptographic random token
+  const resetToken = crypto.randomBytes(32).toString('hex')
+  const tokenExpires = new Date(Date.now() + 60 * 60 * 1000) // 1 Hour
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires: tokenExpires,
+    },
+  })
+
+  console.log(`🔑 [NexaPOS Password Reset]: Reset token for ${email}: ${resetToken}`)
+
+  return {
+    message: 'If the provided email belongs to an active staff account, a reset token has been issued.',
+    resetToken: env.NODE_ENV === 'development' ? resetToken : undefined,
+  }
+}
+
+export async function resetUserPassword(token, newPassword) {
+  const user = await prisma.user.findFirst({
+    where: {
+      resetPasswordToken: token,
+      resetPasswordExpires: { gt: new Date() },
+    },
+  })
+
+  if (!user) {
+    const error = new Error('Invalid or expired password reset token.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    },
+  })
+
+  return { message: 'Your password has been reset successfully. You may now log in with your new credentials.' }
+}

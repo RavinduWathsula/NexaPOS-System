@@ -58,19 +58,28 @@ async function main() {
   const permissionsData = [
     // POS & Sales
     { code: 'pos:access', name: 'Access POS Terminal', module: 'pos' },
+    { code: 'pos:print', name: 'Print Receipts & Invoices', module: 'pos' },
     { code: 'sales:create', name: 'Process Sales & Invoices', module: 'pos' },
     { code: 'sales:view', name: 'View Sales History', module: 'pos' },
+    { code: 'sales:view_own', name: 'View Own Sales History', module: 'pos' },
     { code: 'sales:refund', name: 'Issue Returns & Refunds', module: 'pos' },
     // Inventory & Catalog
     { code: 'products:view', name: 'View Catalog', module: 'inventory' },
     { code: 'products:manage', name: 'Manage Products & Prices', module: 'inventory' },
     { code: 'imei:register', name: 'Register Serial & IMEI', module: 'inventory' },
+    { code: 'inventory:view', name: 'View Inventory Levels', module: 'inventory' },
     { code: 'inventory:adjust', name: 'Stock Adjustments & Transfers', module: 'inventory' },
     // Procurement & Suppliers
     { code: 'purchases:manage', name: 'Manage Purchase Orders', module: 'procurement' },
+    { code: 'purchases:receive', name: 'Stock Receiving & Intake', module: 'procurement' },
     { code: 'suppliers:manage', name: 'Manage Suppliers', module: 'procurement' },
+    { code: 'customers:manage', name: 'Manage Customers', module: 'customers' },
+    { code: 'customers:create', name: 'Register Customers', module: 'customers' },
     // Repairs & Warranty
+    { code: 'repairs:view', name: 'View Repairs Queue', module: 'repairs' },
     { code: 'repairs:manage', name: 'Manage Repair Jobs', module: 'repairs' },
+    { code: 'repairs:assigned', name: 'View Assigned Repair Jobs', module: 'repairs' },
+    { code: 'repairs:status_update', name: 'Update Repair Job Status', module: 'repairs' },
     { code: 'warranty:manage', name: 'Issue & Claim Warranties', module: 'repairs' },
     // Finance & Reports
     { code: 'reports:view', name: 'View Financial Analytics', module: 'finance' },
@@ -91,22 +100,49 @@ async function main() {
   }
   console.log(`✅ Created ${Object.keys(createdPermissions).length} permissions.`)
 
-  // Assign All Permissions to Super Admin
-  for (const perm of Object.values(createdPermissions)) {
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: createdRoles.SUPER_ADMIN.id,
-          permissionId: perm.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: createdRoles.SUPER_ADMIN.id,
-        permissionId: perm.id,
-      },
-    })
+  // Role Permissions Definitions
+  const rolePermissionsMap = {
+    SUPER_ADMIN: Object.keys(createdPermissions), // Full access
+    MANAGER: [
+      'pos:access', 'pos:print', 'sales:create', 'sales:view', 'sales:refund',
+      'products:view', 'products:manage', 'imei:register', 'inventory:view', 'inventory:adjust',
+      'purchases:manage', 'purchases:receive', 'suppliers:manage', 'customers:manage', 'customers:create',
+      'repairs:view', 'warranty:manage', 'reports:view', 'expenses:manage',
+    ],
+    CASHIER: [
+      'pos:access', 'pos:print', 'sales:create', 'sales:view_own', 'customers:create',
+    ],
+    TECHNICIAN: [
+      'repairs:view', 'repairs:manage', 'repairs:assigned', 'repairs:status_update', 'warranty:manage',
+    ],
+    STOCK_KEEPER: [
+      'inventory:view', 'inventory:adjust', 'imei:register', 'purchases:receive', 'products:view',
+    ],
   }
+
+  // Assign permissions to each role
+  for (const [roleName, permCodes] of Object.entries(rolePermissionsMap)) {
+    const role = createdRoles[roleName]
+    for (const code of permCodes) {
+      const perm = createdPermissions[code]
+      if (perm && role) {
+        await prisma.rolePermission.upsert({
+          where: {
+            roleId_permissionId: {
+              roleId: role.id,
+              permissionId: perm.id,
+            },
+          },
+          update: {},
+          create: {
+            roleId: role.id,
+            permissionId: perm.id,
+          },
+        })
+      }
+    }
+  }
+  console.log('✅ Assigned granular role permissions to all 5 roles.')
 
   // 3. STAFF USERS (Hashed development credentials)
   const defaultPassword = await bcrypt.hash('Password@123', 10)
