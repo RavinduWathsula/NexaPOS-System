@@ -27,6 +27,18 @@ export const updateBrandSchema = createBrandSchema.partial()
 // ==============================
 // Product Validators
 // ==============================
+export const variantItemSchema = z.object({
+  id: z.string().optional(),
+  sku: z.string().min(2, 'Variant SKU must be at least 2 characters'),
+  color: z.string().optional().or(z.literal('')),
+  storage: z.string().optional().or(z.literal('')),
+  ram: z.string().optional().or(z.literal('')),
+  model: z.string().optional().or(z.literal('')),
+  barcode: z.string().optional().or(z.literal('')),
+  costPrice: z.coerce.number().min(0).optional(),
+  retailPrice: z.coerce.number().min(0).optional(),
+})
+
 export const createProductSchema = z.object({
   name: z.string({ required_error: 'Product name is required' }).min(2, 'Product name is too short'),
   sku: z.string({ required_error: 'SKU code is required' }).min(3, 'SKU must be at least 3 characters'),
@@ -42,9 +54,18 @@ export const createProductSchema = z.object({
   initialStock: z.coerce.number().int().min(0).optional().default(0),
   reorderLevel: z.coerce.number().int().min(0).optional().default(5),
   location: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  images: z.array(z.string().url()).optional(),
+  variants: z.array(variantItemSchema).optional(),
 })
 
 export const updateProductSchema = createProductSchema.partial()
+
+export const createVariantSchema = variantItemSchema.extend({
+  productId: z.string({ required_error: 'Product ID is required' }),
+})
+
+export const updateVariantSchema = variantItemSchema.partial()
 
 // ==============================
 // Serialized Device / IMEI Validators
@@ -68,6 +89,7 @@ export const createDeviceSchema = z.object({
 
 export const bulkDeviceSchema = z.object({
   productId: z.string({ required_error: 'Product ID is required' }),
+  variantId: z.string().nullable().optional(),
   purchaseCost: z.coerce.number().min(0),
   sellingPrice: z.coerce.number().min(0).optional(),
   color: z.string().optional(),
@@ -84,7 +106,7 @@ export const bulkDeviceSchema = z.object({
 })
 
 export const updateDeviceStatusSchema = z.object({
-  status: z.enum(['IN_STOCK', 'SOLD', 'RESERVED', 'UNDER_REPAIR', 'DEFECTIVE', 'RETURNED']),
+  status: z.enum(['IN_STOCK', 'SOLD', 'RESERVED', 'UNDER_REPAIR', 'DEFECTIVE', 'DAMAGED', 'RETURNED']),
   reason: z.string().min(2, 'A reason for status change is required'),
   referenceId: z.string().optional(),
 })

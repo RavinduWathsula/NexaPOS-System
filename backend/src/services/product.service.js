@@ -48,6 +48,8 @@ export async function listProducts(filters = {}) {
         brand: {
           select: { id: true, name: true, slug: true },
         },
+        variants: true,
+        images: true,
         inventory: {
           select: { quantity: true, reorderLevel: true, location: true, branch: true },
         },
@@ -174,6 +176,47 @@ export async function createProduct(data, userId) {
       },
     })
 
+    // Create primary image if provided
+    if (data.imageUrl) {
+      await tx.productImage.create({
+        data: {
+          productId: product.id,
+          url: data.imageUrl,
+          isPrimary: true,
+        },
+      })
+    } else if (Array.isArray(data.images) && data.images.length > 0) {
+      for (let i = 0; i < data.images.length; i++) {
+        await tx.productImage.create({
+          data: {
+            productId: product.id,
+            url: data.images[i],
+            isPrimary: i === 0,
+          },
+        })
+      }
+    }
+
+    // Create Variants if provided
+    if (Array.isArray(data.variants) && data.variants.length > 0) {
+      for (const v of data.variants) {
+        if (!v.sku) continue
+        await tx.productVariant.create({
+          data: {
+            productId: product.id,
+            sku: v.sku.trim(),
+            barcode: v.barcode?.trim() || null,
+            model: v.model?.trim() || null,
+            color: v.color?.trim() || null,
+            storage: v.storage?.trim() || null,
+            ram: v.ram?.trim() || null,
+            costPrice: v.costPrice || data.costPrice,
+            retailPrice: v.retailPrice || data.retailPrice,
+          },
+        })
+      }
+    }
+
     // If initial stock was provided for non-serialized item, record stock movement
     if (initialQty > 0) {
       await tx.stockMovement.create({
@@ -191,7 +234,16 @@ export async function createProduct(data, userId) {
       })
     }
 
-    return product
+    return await tx.product.findUnique({
+      where: { id: product.id },
+      include: {
+        category: true,
+        brand: true,
+        variants: true,
+        images: true,
+        inventory: true,
+      },
+    })
   })
 }
 
@@ -211,26 +263,169 @@ export async function updateProduct(id, data) {
     }
   }
 
-  return await prisma.product.update({
-    where: { id },
+  return await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({
+      where: { id },
+      data: {
+        name: data.name,
+        sku: data.sku,
+        barcode: data.barcode,
+        description: data.description,
+        categoryId: data.categoryId,
+        brandId: data.brandId,
+        costPrice: data.costPrice,
+        retailPrice: data.retailPrice,
+        minPrice: data.minPrice,
+        defaultWarrantyMonths: data.defaultWarrantyMonths,
+      },
+      include: {
+        category: true,
+        brand: true,
+        inventory: true,
+        images: true,
+        variants: true,
+      },
+    })
+
+    // If a new image URL is passed and not already present, attach it
+    if (data.imageUrl) {
+      const hasImg = await tx.productImage.findFirst({
+        where: { productId: id, url: data.imageUrl },
+      })
+      if (!hasImg) {
+        await tx.productImage.create({
+          data: {
+            productId: id,
+            url: data.imageUrl,
+            isPrimary: updated.images.length === 0,
+          },
+        })
+      }
+    }
+
+    return await tx.product.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        brand: true,
+        inventory: true,
+        images: true,
+        variants: true,
+      },
+    })
+  })
+}
+
+// ==============================
+// Product Variants Operations
+// ==============================
+
+export async function addProductVariant(productId, variantData) {
+  const product = await prisma.product.findUnique({ where: { id: productId } })
+  if (!product) {
+    const error = new Error('Product not found.')
+    error.statusCode = 404
+    throw error
+  }
+
+  // Check unique SKU for variant
+  const existingSku = await prisma.productVariant.findUnique({
+    where: { sku: variantData.sku },
+  })
+  if (existingSku) {
+    const error = new Error(`Variant SKU '${variantData.sku}' already exists.`)
+    error.statusCode = 409
+    throw error
+  }
+
+  return await prisma.productVariant.create({
     data: {
-      name: data.name,
-      sku: data.sku,
-      barcode: data.barcode,
-      description: data.description,
-      categoryId: data.categoryId,
-      brandId: data.brandId,
-      costPrice: data.costPrice,
-      retailPrice: data.retailPrice,
-      minPrice: data.minPrice,
-      defaultWarrantyMonths: data.defaultWarrantyMonths,
-    },
-    include: {
-      category: true,
-      brand: true,
-      inventory: true,
+      productId,
+      sku: variantData.sku.trim(),
+      barcode: variantData.barcode?.trim() || null,
+      model: variantData.model?.trim() || null,
+      color: variantData.color?.trim() || null,
+      storage: variantData.storage?.trim() || null,
+      ram: variantData.ram?.trim() || null,
+      costPrice: variantData.costPrice || product.costPrice,
+      retailPrice: variantData.retailPrice || product.retailPrice,
     },
   })
+}
+
+export async function updateProductVariant(variantId, variantData) {
+  const existing = await prisma.productVariant.findUnique({ where: { id: variantId } })
+  if (!existing) {
+    const error = new Error('Product variant not found.')
+    error.statusCode = 404
+    throw error
+  }
+
+  if (variantData.sku && variantData.sku !== existing.sku) {
+    const dup = await prisma.productVariant.findUnique({ where: { sku: variantData.sku } })
+    if (dup) {
+      const error = new Error(`Variant SKU '${variantData.sku}' is already in use.`)
+      error.statusCode = 409
+      throw error
+    }
+  }
+
+  return await prisma.productVariant.update({
+    where: { id: variantId },
+    data: {
+      sku: variantData.sku,
+      barcode: variantData.barcode,
+      model: variantData.model,
+      color: variantData.color,
+      storage: variantData.storage,
+      ram: variantData.ram,
+      costPrice: variantData.costPrice,
+      retailPrice: variantData.retailPrice,
+    },
+  })
+}
+
+export async function deleteProductVariant(variantId) {
+  const devicesCount = await prisma.device.count({ where: { variantId } })
+  if (devicesCount > 0) {
+    const error = new Error(`Cannot delete variant: ${devicesCount} devices are assigned to this variant.`)
+    error.statusCode = 400
+    throw error
+  }
+
+  return await prisma.productVariant.delete({ where: { id: variantId } })
+}
+
+// ==============================
+// Product Images Operations
+// ==============================
+
+export async function addProductImage(productId, { url, isPrimary = false }) {
+  const product = await prisma.product.findUnique({ where: { id: productId } })
+  if (!product) {
+    const error = new Error('Product not found.')
+    error.statusCode = 404
+    throw error
+  }
+
+  if (isPrimary) {
+    await prisma.productImage.updateMany({
+      where: { productId },
+      data: { isPrimary: false },
+    })
+  }
+
+  return await prisma.productImage.create({
+    data: {
+      productId,
+      url,
+      isPrimary,
+    },
+  })
+}
+
+export async function deleteProductImage(imageId) {
+  return await prisma.productImage.delete({ where: { id: imageId } })
 }
 
 export async function deleteProduct(id) {

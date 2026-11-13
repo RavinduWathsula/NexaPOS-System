@@ -148,6 +148,8 @@ model ProductVariant {
   id          String    @id @default(uuid())
   productId   String
   sku         String    @unique
+  barcode     String?
+  model       String?
   color       String?
   storage     String?   // e.g. "128GB", "256GB", "512GB"
   ram         String?   // e.g. "8GB", "12GB"
@@ -184,6 +186,7 @@ enum DeviceStatus {
   RESERVED
   UNDER_REPAIR
   DEFECTIVE
+  DAMAGED
   RETURNED
 }
 

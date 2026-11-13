@@ -94,6 +94,11 @@ export const productsAPI = {
   create: (data) => api.post('/products', data),
   update: (id, data) => api.put(`/products/${id}`, data),
   delete: (id) => api.delete(`/products/${id}`),
+  addVariant: (productId, data) => api.post(`/products/${productId}/variants`, data),
+  updateVariant: (productId, variantId, data) => api.put(`/products/${productId}/variants/${variantId}`, data),
+  deleteVariant: (productId, variantId) => api.delete(`/products/${productId}/variants/${variantId}`),
+  addImage: (productId, data) => api.post(`/products/${productId}/images`, data),
+  deleteImage: (productId, imageId) => api.delete(`/products/${productId}/images/${imageId}`),
 }
 
 export const devicesAPI = {
