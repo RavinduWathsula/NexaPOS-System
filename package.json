@@ -1,0 +1,14 @@
+{
+  "name": "nexapos-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix client",
+    "client": "npm run dev --prefix client",
+    "server": "npm run dev --prefix backend",
+    "build": "npm run build --prefix client",
+    "db:migrate": "npm run prisma:migrate --prefix backend",
+    "db:push": "npm run prisma:push --prefix backend",
+    "db:seed": "npm run prisma:seed --prefix backend"
+  }
+}

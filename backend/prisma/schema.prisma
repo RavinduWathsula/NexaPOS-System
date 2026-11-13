@@ -1,0 +1,744 @@
+// NexaPOS Prisma Database Schema
+// Optimized for Electronics & Mobile Phone Retail Management in Sri Lanka (LKR)
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. AUTHENTICATION & ACCESS CONTROL (RBAC)
+// ==========================================
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  phone        String?
+  avatar       String?
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  sales        Sale[]
+  purchases    Purchase[]
+  repairJobs   RepairJob[]    @relation("TechnicianRepairs")
+  expenses     Expense[]
+  cashSessions CashSession[]
+  auditLogs    AuditLog[]
+
+  @@index([roleId])
+  @@index([email])
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  name            String           @unique // SUPER_ADMIN, MANAGER, CASHIER, TECHNICIAN, STOCK_KEEPER
+  displayName     String
+  description     String?
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  users           User[]
+  rolePermissions RolePermission[]
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  code            String           @unique // e.g. "pos:access", "products:create", "reports:export"
+  name            String
+  module          String           // "pos", "inventory", "repairs", "finance", "admin"
+  description     String?
+  createdAt       DateTime         @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// ==========================================
+// 2. PRODUCT CATALOG & BRANDS
+// ==========================================
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String?
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  products    Product[]
+
+  @@index([parentId])
+}
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  country     String?
+  logoUrl     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+}
+
+model Product {
+  id                    String           @id @default(uuid())
+  name                  String
+  sku                   String           @unique
+  barcode               String?          @unique
+  description           String?          @db.Text
+  categoryId            String
+  brandId               String?
+  isSerialized          Boolean          @default(false) // True for phones/smartphones, False for chargers/cases
+  costPrice             Decimal          @db.Decimal(12, 2)
+  retailPrice           Decimal          @db.Decimal(12, 2)
+  minPrice              Decimal?         @db.Decimal(12, 2)
+  defaultWarrantyMonths Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  category              Category         @relation(fields: [categoryId], references: [id])
+  brand                 Brand?           @relation(fields: [brandId], references: [id])
+  variants              ProductVariant[]
+  images                ProductImage[]
+  devices               Device[]
+  inventory             Inventory[]
+  saleItems             SaleItem[]
+  purchaseItems         PurchaseItem[]
+  repairParts           RepairPart[]
+  stockMovements        StockMovement[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isSerialized])
+}
+
+model ProductVariant {
+  id          String    @id @default(uuid())
+  productId   String
+  sku         String    @unique
+  color       String?
+  storage     String?   // e.g. "128GB", "256GB", "512GB"
+  ram         String?   // e.g. "8GB", "12GB"
+  costPrice   Decimal?  @db.Decimal(12, 2)
+  retailPrice Decimal?  @db.Decimal(12, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  devices     Device[]
+
+  @@index([productId])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  url       String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ==========================================
+// 3. SERIALIZED DEVICES & IMEI TRACKING
+// ==========================================
+
+enum DeviceStatus {
+  IN_STOCK
+  SOLD
+  RESERVED
+  UNDER_REPAIR
+  DEFECTIVE
+  RETURNED
+}
+
+model Device {
+  id             String                @id @default(uuid())
+  productId      String
+  variantId      String?
+  imei1          String                @unique // Strict unique constraint: no duplicate IMEI allowed
+  imei2          String?
+  serialNumber   String?               @unique
+  color          String?
+  storage        String?
+  batteryHealth  Int?
+  purchaseCost   Decimal               @db.Decimal(12, 2)
+  sellingPrice   Decimal?              @db.Decimal(12, 2)
+  status         DeviceStatus          @default(IN_STOCK)
+  purchaseId     String?
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  product        Product               @relation(fields: [productId], references: [id])
+  variant        ProductVariant?       @relation(fields: [variantId], references: [id])
+  purchase       Purchase?             @relation(fields: [purchaseId], references: [id])
+  saleItemDevice SaleItemDevice?
+  statusHistory  DeviceStatusHistory[]
+  warranties     Warranty[]
+  returnItems    ReturnItem[]
+
+  @@index([productId])
+  @@index([variantId])
+  @@index([status])
+}
+
+model DeviceStatusHistory {
+  id          String       @id @default(uuid())
+  deviceId    String
+  fromStatus  DeviceStatus
+  toStatus    DeviceStatus
+  changedById String?
+  reason      String?
+  referenceId String?      // Sale ID, PO ID, or Repair ID
+  createdAt   DateTime     @default(now())
+
+  device      Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+}
+
+// ==========================================
+// 4. INVENTORY & STOCK MOVEMENTS
+// ==========================================
+
+enum StockMovementType {
+  STOCK_IN
+  STOCK_OUT
+  SALE
+  PURCHASE
+  RETURN
+  ADJUSTMENT
+  REPAIR_CONSUMPTION
+}
+
+model Inventory {
+  id           String   @id @default(uuid())
+  productId    String
+  quantity     Int      @default(0)
+  reorderLevel Int      @default(5)
+  location     String?  // Rack/Shelf location
+  branch       String   @default("Colombo Main")
+  updatedAt    DateTime @updatedAt
+
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@unique([productId, branch])
+  @@index([productId])
+}
+
+model StockMovement {
+  id          String            @id @default(uuid())
+  productId   String
+  type        StockMovementType
+  quantity    Int
+  previousQty Int
+  newQty      Int
+  unitCost    Decimal?          @db.Decimal(12, 2)
+  reference   String?           // Invoice #, PO #, or Adjustment #
+  notes       String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+
+  product     Product           @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum AdjustmentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model StockAdjustment {
+  id              String           @id @default(uuid())
+  referenceNumber String           @unique
+  reason          String
+  adjustedById    String
+  status          AdjustmentStatus @default(COMPLETED)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+// ==========================================
+// 5. CUSTOMERS & SUPPLIERS
+// ==========================================
+
+model Customer {
+  id            String       @id @default(uuid())
+  name          String
+  phone         String       @unique
+  email         String?
+  nic           String?
+  address       String?
+  loyaltyTier   String       @default("STANDARD") // STANDARD, SILVER, GOLD, VIP
+  loyaltyPoints Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  sales         Sale[]
+  warranties    Warranty[]
+  repairJobs    RepairJob[]
+  returns       Return[]
+
+  @@index([phone])
+}
+
+model Supplier {
+  id            String     @id @default(uuid())
+  name          String
+  company       String?
+  contactPerson String?
+  phone         String     @unique
+  email         String?
+  address       String?
+  creditDays    Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  purchases     Purchase[]
+
+  @@index([phone])
+}
+
+// ==========================================
+// 6. PURCHASES & PROCUREMENT (GRN)
+// ==========================================
+
+enum PurchaseStatus {
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  REFUNDED
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  poNumber      String         @unique
+  supplierId    String
+  createdById   String
+  orderDate     DateTime       @default(now())
+  deliveryDate  DateTime?
+  subtotal      Decimal        @db.Decimal(12, 2)
+  tax           Decimal        @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal        @db.Decimal(12, 2)
+  paidAmount    Decimal        @default(0) @db.Decimal(12, 2)
+  paymentStatus PaymentStatus  @default(UNPAID)
+  status        PurchaseStatus @default(ORDERED)
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  createdBy     User           @relation(fields: [createdById], references: [id])
+  items         PurchaseItem[]
+  devices       Device[]
+  payments      Payment[]
+
+  @@index([supplierId])
+  @@index([createdById])
+  @@index([poNumber])
+}
+
+model PurchaseItem {
+  id         String   @id @default(uuid())
+  purchaseId String
+  productId  String
+  quantity   Int
+  unitCost   Decimal  @db.Decimal(12, 2)
+  subtotal   Decimal  @db.Decimal(12, 2)
+
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+// ==========================================
+// 7. SALES, INVOICING & PAYMENTS
+// ==========================================
+
+enum SaleStatus {
+  COMPLETED
+  HOLD
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  INSTALLMENT_KOKO
+  SPLIT
+}
+
+model Sale {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  customerId    String?
+  cashierId     String
+  cashSessionId String?
+  subtotal      Decimal       @db.Decimal(12, 2)
+  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @db.Decimal(12, 2)
+  changeAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  paymentStatus PaymentStatus @default(PAID)
+  saleStatus    SaleStatus    @default(COMPLETED)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  cashSession   CashSession?  @relation(fields: [cashSessionId], references: [id])
+  items         SaleItem[]
+  payments      Payment[]
+  returns       Return[]
+  warranties    Warranty[]
+
+  @@index([customerId])
+  @@index([cashierId])
+  @@index([invoiceNumber])
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id             String          @id @default(uuid())
+  saleId         String
+  productId      String
+  quantity       Int
+  unitCost       Decimal         @db.Decimal(12, 2) // Preserved historical purchase cost
+  unitPrice      Decimal         @db.Decimal(12, 2) // Preserved historical selling price
+  discount       Decimal         @default(0) @db.Decimal(12, 2)
+  subtotal       Decimal         @db.Decimal(12, 2)
+  warrantyMonths Int             @default(0)
+
+  sale           Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id])
+  devices        SaleItemDevice[]
+  returnItems    ReturnItem[]
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model SaleItemDevice {
+  id         String   @id @default(uuid())
+  saleItemId String
+  deviceId   String   @unique // Each device can only be attached to ONE sale item
+  createdAt  DateTime @default(now())
+
+  saleItem   SaleItem @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  device     Device   @relation(fields: [deviceId], references: [id])
+
+  @@index([saleItemId])
+  @@index([deviceId])
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  saleId         String?
+  purchaseId     String?
+  amount         Decimal       @db.Decimal(12, 2)
+  method         PaymentMethod
+  cardLastFour   String?
+  transactionRef String?
+  notes          String?
+  paymentDate    DateTime      @default(now())
+
+  sale           Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  purchase       Purchase?     @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([purchaseId])
+}
+
+// ==========================================
+// 8. RETURNS & REFUNDS
+// ==========================================
+
+model Return {
+  id           String        @id @default(uuid())
+  returnNumber String        @unique
+  saleId       String
+  customerId   String?
+  totalRefund  Decimal       @db.Decimal(12, 2)
+  reason       String
+  refundMethod PaymentMethod @default(CASH)
+  createdAt    DateTime      @default(now())
+
+  sale         Sale          @relation(fields: [saleId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  items        ReturnItem[]
+
+  @@index([saleId])
+  @@index([customerId])
+}
+
+model ReturnItem {
+  id           String   @id @default(uuid())
+  returnId     String
+  saleItemId   String
+  deviceId     String?
+  quantity     Int
+  refundAmount Decimal  @db.Decimal(12, 2)
+  condition    String?  // RESELLABLE, DEFECTIVE
+
+  return       Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItem     SaleItem @relation(fields: [saleItemId], references: [id])
+  device       Device?  @relation(fields: [deviceId], references: [id])
+
+  @@index([returnId])
+  @@index([saleItemId])
+  @@index([deviceId])
+}
+
+// ==========================================
+// 9. WARRANTY MANAGEMENT & CLAIMS
+// ==========================================
+
+enum WarrantyStatus {
+  ACTIVE
+  EXPIRED
+  CLAIMED
+  VOIDED
+}
+
+model Warranty {
+  id           String          @id @default(uuid())
+  warrantyCode String          @unique
+  deviceId     String?
+  customerId   String?
+  saleId       String?
+  startDate    DateTime
+  endDate      DateTime
+  terms        String?         @db.Text
+  status       WarrantyStatus  @default(ACTIVE)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  device       Device?         @relation(fields: [deviceId], references: [id])
+  customer     Customer?       @relation(fields: [customerId], references: [id])
+  sale         Sale?           @relation(fields: [saleId], references: [id])
+  claims       WarrantyClaim[]
+
+  @@index([deviceId])
+  @@index([customerId])
+  @@index([saleId])
+  @@index([warrantyCode])
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESOLVED
+}
+
+model WarrantyClaim {
+  id              String      @id @default(uuid())
+  warrantyId      String
+  claimDate       DateTime    @default(now())
+  issueReported   String      @db.Text
+  resolutionNotes String?     @db.Text
+  status          ClaimStatus @default(PENDING)
+  resolvedAt      DateTime?
+
+  warranty        Warranty    @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+
+  @@index([warrantyId])
+}
+
+// ==========================================
+// 10. REPAIR JOBS & WORKSHOP MANAGEMENT
+// ==========================================
+
+enum RepairStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_FOR_PARTS
+  IN_PROGRESS
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model RepairJob {
+  id               String       @id @default(uuid())
+  ticketNumber     String       @unique
+  customerId       String
+  technicianId     String?
+  deviceModel      String
+  imei             String?
+  serialNumber     String?
+  passcode         String?
+  issueDescription String       @db.Text
+  diagnosis        String?      @db.Text
+  estimatedCost    Decimal      @db.Decimal(12, 2)
+  finalCost        Decimal?     @db.Decimal(12, 2)
+  status           RepairStatus @default(RECEIVED)
+  priority         Priority     @default(NORMAL)
+  receivedAt       DateTime     @default(now())
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  customer         Customer     @relation(fields: [customerId], references: [id])
+  technician       User?        @relation("TechnicianRepairs", fields: [technicianId], references: [id])
+  parts            RepairPart[]
+
+  @@index([customerId])
+  @@index([technicianId])
+  @@index([ticketNumber])
+  @@index([status])
+}
+
+model RepairPart {
+  id          String    @id @default(uuid())
+  repairJobId String
+  productId   String?
+  partName    String
+  quantity    Int       @default(1)
+  unitCost    Decimal   @db.Decimal(12, 2)
+  unitPrice   Decimal   @db.Decimal(12, 2)
+
+  repairJob   RepairJob @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  @@index([repairJobId])
+  @@index([productId])
+}
+
+// ==========================================
+// 11. FINANCE, EXPENSES & CASH SESSIONS
+// ==========================================
+
+model Expense {
+  id            String        @id @default(uuid())
+  title         String
+  category      String        // "Rent", "Utilities", "Salaries", "Workshop Tools", "Maintenance"
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  expenseDate   DateTime      @default(now())
+  notes         String?
+  createdById   String
+  createdAt     DateTime      @default(now())
+
+  createdBy     User          @relation(fields: [createdById], references: [id])
+
+  @@index([createdById])
+  @@index([expenseDate])
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+model CashSession {
+  id              String            @id @default(uuid())
+  cashierId       String
+  openedAt        DateTime          @default(now())
+  closedAt        DateTime?
+  openingBalance  Decimal           @db.Decimal(12, 2)
+  closingBalance  Decimal?          @db.Decimal(12, 2)
+  expectedBalance Decimal?          @db.Decimal(12, 2)
+  difference      Decimal?          @db.Decimal(12, 2)
+  status          CashSessionStatus @default(OPEN)
+  notes           String?
+
+  cashier         User              @relation(fields: [cashierId], references: [id])
+  sales           Sale[]
+
+  @@index([cashierId])
+}
+
+// ==========================================
+// 12. AUDIT LOGS & SETTINGS
+// ==========================================
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  action        String   // e.g. "USER_LOGIN", "SALE_COMPLETED", "IMEI_REGISTERED"
+  entity        String   // "Sale", "Device", "Product", "User"
+  entityId      String?
+  details       String?  @db.Text
+  performedById String?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  performedBy   User?    @relation(fields: [performedById], references: [id])
+
+  @@index([performedById])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  group       String   @default("general") // general, pos, printer, warranty, tax
+  description String?
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([group])
+}
