@@ -100,3 +100,4 @@ export async function deleteBrand(id) {
     where: { id },
   })
 }
+

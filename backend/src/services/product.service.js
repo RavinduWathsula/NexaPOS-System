@@ -255,3 +255,4 @@ export async function deleteProduct(id) {
     return await tx.product.delete({ where: { id } })
   })
 }
+

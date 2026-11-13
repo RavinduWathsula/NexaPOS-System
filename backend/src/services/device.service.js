@@ -469,3 +469,4 @@ export async function updateDeviceStatus(id, newStatus, reason, referenceId, use
     return updated
   })
 }
+
