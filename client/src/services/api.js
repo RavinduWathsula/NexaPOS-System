@@ -110,6 +110,44 @@ export const devicesAPI = {
   updateStatus: (id, data) => api.patch(`/devices/${id}/status`, data),
 }
 
+export const inventoryAPI = {
+  dashboard: () => api.get('/inventory/dashboard'),
+  stock: (params) => api.get('/inventory/stock', { params }),
+  adjust: (data) => api.post('/inventory/adjust', data),
+  stockIn: (data) => api.post('/inventory/stock-in', data),
+  stockOut: (data) => api.post('/inventory/stock-out', data),
+  movements: (params) => api.get('/inventory/movements', { params }),
+  threshold: (productId, data) => api.put(`/inventory/threshold/${productId}`, data),
+  adjustments: (params) => api.get('/inventory/adjustments', { params }),
+}
+
+export const suppliersAPI = {
+  list: (params) => api.get('/suppliers', { params }),
+  get: (id) => api.get(`/suppliers/${id}`),
+  create: (data) => api.post('/suppliers', data),
+  update: (id, data) => api.put(`/suppliers/${id}`, data),
+  delete: (id) => api.delete(`/suppliers/${id}`),
+}
+
+export const purchasesAPI = {
+  list: (params) => api.get('/purchases', { params }),
+  get: (id) => api.get(`/purchases/${id}`),
+  create: (data) => api.post('/purchases', data),
+  receive: (id, data) => api.post(`/purchases/${id}/receive`, data),
+  recordPayment: (id, data) => api.post(`/purchases/${id}/payment`, data),
+  cancel: (id) => api.patch(`/purchases/${id}/cancel`),
+}
+
+export const posAPI = {
+  catalog: (params) => api.get('/pos/catalog', { params }),
+  lookupIMEI: (imei) => api.get(`/pos/lookup-imei/${imei}`),
+  customers: (params) => api.get('/pos/customers', { params }),
+  quickCustomer: (data) => api.post('/pos/quick-customer', data),
+  checkout: (data) => api.post('/pos/checkout', data),
+  receipt: (idOrInvoice) => api.get(`/pos/receipt/${idOrInvoice}`),
+  sales: (params) => api.get('/pos/sales', { params }),
+}
+
 export const healthAPI = {
   check: () => api.get('/health'),
 }

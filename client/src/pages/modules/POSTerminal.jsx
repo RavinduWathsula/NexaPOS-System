@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Smartphone,
   Search,
@@ -15,511 +15,1053 @@ import {
   X,
   Receipt,
   RotateCcw,
+  Sparkles,
+  ShoppingBag,
+  Percent,
+  AlertCircle,
+  Building,
+  ShieldCheck,
+  Check,
+  Tag,
+  Warehouse,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { ThermalReceipt } from '@/components/pos/ThermalReceipt'
+import { posAPI, categoriesAPI, brandsAPI } from '@/services/api'
 import { formatLKR } from '@/utils/currency'
-
-// Sample products for POS fast billing
-const SAMPLE_POS_PRODUCTS = [
-  {
-    id: 'pos_p1',
-    name: 'Apple iPhone 15 Pro',
-    category: 'Smartphones',
-    price: 435000,
-    stock: 8,
-    isSerialized: true,
-    imeiSample: '354892019482910',
-    image: '📱',
-  },
-  {
-    id: 'pos_p2',
-    name: 'Samsung Galaxy S24 Ultra',
-    category: 'Smartphones',
-    price: 465000,
-    stock: 5,
-    isSerialized: true,
-    imeiSample: '357281098231902',
-    image: '📱',
-  },
-  {
-    id: 'pos_p3',
-    name: 'Xiaomi Redmi Note 13',
-    category: 'Smartphones',
-    price: 78000,
-    stock: 14,
-    isSerialized: true,
-    imeiSample: '861928374619283',
-    image: '📱',
-  },
-  {
-    id: 'pos_p4',
-    name: 'Apple 20W USB-C Adapter',
-    category: 'Charging',
-    price: 8500,
-    stock: 42,
-    isSerialized: false,
-    image: '🔌',
-  },
-  {
-    id: 'pos_p5',
-    name: 'Anker PowerCore 20K Powerbank',
-    category: 'Charging',
-    price: 19500,
-    stock: 18,
-    isSerialized: false,
-    image: '🔋',
-  },
-  {
-    id: 'pos_p6',
-    name: 'Sony WH-1000XM5 Headphones',
-    category: 'Audio',
-    price: 135000,
-    stock: 3,
-    isSerialized: true,
-    imeiSample: 'SN-SNY-9982103',
-    image: '🎧',
-  },
-  {
-    id: 'pos_p7',
-    name: 'Apple AirPods Pro (Gen 2)',
-    category: 'Audio',
-    price: 84000,
-    stock: 12,
-    isSerialized: true,
-    imeiSample: 'SN-APP-7712391',
-    image: '🎧',
-  },
-  {
-    id: 'pos_p8',
-    name: 'Spigen Ultra Hybrid Clear Case',
-    category: 'Protection',
-    price: 6500,
-    stock: 35,
-    isSerialized: false,
-    image: '🛡️',
-  },
-]
-
-const CATEGORIES = ['All Products', 'Smartphones', 'Audio', 'Charging', 'Protection']
+import { useAuthStore } from '@/stores/authStore'
 
 export function POSTerminal() {
-  const [selectedCategory, setSelectedCategory] = useState('All Products')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [cart, setCart] = useState([
-    {
-      ...SAMPLE_POS_PRODUCTS[0],
-      cartQty: 1,
-      selectedIMEI: SAMPLE_POS_PRODUCTS[0].imeiSample,
-    },
-    {
-      ...SAMPLE_POS_PRODUCTS[3],
-      cartQty: 2,
-    },
-  ])
-  const [customer, setCustomer] = useState('Walk-in Customer')
-  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
-  const [paymentType, setPaymentType] = useState('cash') // 'cash', 'card', 'split'
+  const { user } = useAuthStore()
 
-  // Filter products
-  const filteredProducts = SAMPLE_POS_PRODUCTS.filter((p) => {
-    const matchesCat =
-      selectedCategory === 'All Products' || p.category === selectedCategory
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.imeiSample && p.imeiSample.includes(searchQuery))
-    return matchesCat && matchesSearch
-  })
+  // Catalog & Filters
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [brands, setBrands] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState('')
+  const [search, setSearch] = useState('')
+  const [scannerInput, setScannerInput] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Add to Cart
-  const addToCart = (product) => {
+  // Shopping Cart State
+  const [cart, setCart] = useState([])
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [customers, setCustomers] = useState([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [invoiceDiscount, setInvoiceDiscount] = useState(0)
+  const [invoiceTax, setInvoiceTax] = useState(0)
+
+  // IMEI Picker Modal State
+  const [isImeiModalOpen, setIsImeiModalOpen] = useState(false)
+  const [targetSerializedProduct, setTargetSerializedProduct] = useState(null)
+  const [selectedImeiDevices, setSelectedImeiDevices] = useState([])
+
+  // Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('CASH') // CASH, CARD, BANK_TRANSFER, SPLIT
+  const [cashTendered, setCashTendered] = useState('')
+  const [cardLastFour, setCardLastFour] = useState('')
+  const [bankRef, setBankRef] = useState('')
+  const [splitPayments, setSplitPayments] = useState([])
+  const [isCheckingOut, setIsCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState('')
+
+  // Quick Customer Registration Modal
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
+  const [custName, setCustName] = useState('')
+  const [custPhone, setCustPhone] = useState('')
+  const [custEmail, setCustEmail] = useState('')
+  const [custNic, setCustNic] = useState('')
+  const [custAddress, setCustAddress] = useState('')
+  const [custSubmitting, setCustSubmitting] = useState(false)
+
+  // Receipt Modal State
+  const [completedSale, setCompletedSale] = useState(null)
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+
+  // Notifications
+  const [toastMsg, setToastMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const scannerRef = useRef(null)
+
+  // Fetch Aux Data
+  const fetchAux = async () => {
+    try {
+      const [catsRes, brandsRes, custRes] = await Promise.all([
+        categoriesAPI.list(),
+        brandsAPI.list(),
+        posAPI.customers(),
+      ])
+      setCategories(catsRes.data?.data || [])
+      setBrands(brandsRes.data?.data || [])
+      setCustomers(custRes.data?.data || [])
+    } catch (err) {
+      console.error('Failed to load aux POS data:', err)
+    }
+  }
+
+  // Fetch POS Catalog
+  const fetchCatalog = async () => {
+    setIsLoading(true)
+    try {
+      const res = await posAPI.catalog({
+        categoryId: selectedCategory || undefined,
+        brandId: selectedBrand || undefined,
+        search: search.trim() || undefined,
+      })
+      setProducts(res.data?.data || [])
+    } catch (err) {
+      setErrorMsg('Failed to load products for POS.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAux()
+  }, [])
+
+  useEffect(() => {
+    fetchCatalog()
+  }, [selectedCategory, selectedBrand, search])
+
+  // Barcode / IMEI Fast Scanner Handler
+  const handleScannerSubmit = async (e) => {
+    e.preventDefault()
+    const code = scannerInput.trim()
+    if (!code) return
+    setScannerInput('')
+
+    try {
+      // 1. First try direct IMEI lookup
+      const imeiRes = await posAPI.lookupIMEI(code)
+      if (imeiRes.data?.data) {
+        const { product, device } = imeiRes.data.data
+        addDeviceToCart(product, device)
+        showToast(`Added ${product.name} (IMEI: ${device.imei1})`)
+        return
+      }
+    } catch (err) {
+      // If not an exact IMEI, search by barcode or SKU in products list
+      const matched = products.find(
+        (p) => p.barcode === code || p.sku.toLowerCase() === code.toLowerCase()
+      )
+      if (matched) {
+        handleProductClick(matched)
+      } else {
+        setErrorMsg(`No product or device found matching code '${code}'.`)
+        setTimeout(() => setErrorMsg(''), 3000)
+      }
+    }
+  }
+
+  const showToast = (msg) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(''), 3000)
+  }
+
+  // Product Card Click
+  const handleProductClick = (product) => {
+    if (product.availableStock <= 0) {
+      setErrorMsg(`'${product.name}' is currently out of stock.`)
+      setTimeout(() => setErrorMsg(''), 3000)
+      return
+    }
+
+    if (product.isSerialized) {
+      // Serialized product: open IMEI selection modal
+      setTargetSerializedProduct(product)
+      setSelectedImeiDevices([])
+      setIsImeiModalOpen(true)
+    } else {
+      // Non-serialized item: add or increment quantity
+      addNonSerializedToCart(product)
+    }
+  }
+
+  // Add Non-Serialized Accessory to Cart
+  const addNonSerializedToCart = (product) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id)
-      if (existing) {
-        if (product.isSerialized) {
-          alert('Serialized devices must be added with a unique IMEI per unit.')
+      const existingIdx = prev.findIndex((item) => item.productId === product.id && !item.isSerialized)
+      if (existingIdx >= 0) {
+        const currentQty = prev[existingIdx].quantity
+        if (currentQty >= product.availableStock) {
+          setErrorMsg(`Cannot add more than ${product.availableStock} units in stock.`)
+          setTimeout(() => setErrorMsg(''), 3000)
           return prev
         }
-        return prev.map((item) =>
-          item.id === product.id
-            ? { ...item, cartQty: item.cartQty + 1 }
-            : item
-        )
+        const updated = [...prev]
+        updated[existingIdx].quantity += 1
+        return updated
+      } else {
+        return [
+          ...prev,
+          {
+            productId: product.id,
+            name: product.name,
+            sku: product.sku,
+            unitPrice: product.retailPrice,
+            quantity: 1,
+            discount: 0,
+            isSerialized: false,
+            availableStock: product.availableStock,
+          },
+        ]
       }
+    })
+    showToast(`Added ${product.name}`)
+  }
+
+  // Add Specific Serialized Device to Cart
+  const addDeviceToCart = (product, device) => {
+    setCart((prev) => {
+      // Check if this exact device is already in cart
+      const isAlreadyInCart = prev.some(
+        (item) => item.device && item.device.id === device.id
+      )
+      if (isAlreadyInCart) {
+        setErrorMsg(`Device with IMEI ${device.imei1} is already in your cart.`)
+        setTimeout(() => setErrorMsg(''), 3000)
+        return prev
+      }
+
       return [
         ...prev,
         {
-          ...product,
-          cartQty: 1,
-          selectedIMEI: product.isSerialized ? product.imeiSample : undefined,
+          productId: product.id,
+          name: product.name,
+          sku: product.sku,
+          unitPrice: device.sellingPrice || product.retailPrice,
+          quantity: 1,
+          discount: 0,
+          isSerialized: true,
+          device,
+          deviceIds: [device.id],
         },
       ]
     })
   }
 
-  // Update Cart Quantity
-  const updateQty = (id, delta) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.id === id) {
-            const newQty = item.cartQty + delta
-            return newQty > 0 ? { ...item, cartQty: newQty } : null
-          }
-          return item
-        })
-        .filter(Boolean)
-    )
+  // Confirm Selection from IMEI Modal
+  const handleConfirmImeiSelection = () => {
+    if (selectedImeiDevices.length === 0) return
+    selectedImeiDevices.forEach((dev) => {
+      addDeviceToCart(targetSerializedProduct, dev)
+    })
+    showToast(`Added ${selectedImeiDevices.length} phone(s) to cart`)
+    setIsImeiModalOpen(false)
   }
 
-  // Remove Cart Item
-  const removeItem = (id) => {
-    setCart((prev) => prev.filter((item) => item.id !== id))
+  // Cart Controls
+  const handleUpdateQty = (index, delta) => {
+    setCart((prev) => {
+      const updated = [...prev]
+      const item = updated[index]
+
+      if (item.isSerialized) {
+        // Serialized items are 1 unit per device
+        return prev
+      }
+
+      const newQty = item.quantity + delta
+      if (newQty <= 0) {
+        return prev.filter((_, idx) => idx !== index)
+      }
+      if (newQty > item.availableStock) {
+        setErrorMsg(`Max available stock is ${item.availableStock}.`)
+        setTimeout(() => setErrorMsg(''), 3000)
+        return prev
+      }
+
+      item.quantity = newQty
+      return updated
+    })
   }
 
-  // Cart Calculations
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.cartQty, 0)
-  const discount = 0
-  const tax = 0 // Net price
-  const total = subtotal - discount + tax
+  const handleUpdateLineDiscount = (index, amount) => {
+    setCart((prev) => {
+      const updated = [...prev]
+      updated[index].discount = Math.max(0, Number(amount) || 0)
+      return updated
+    })
+  }
+
+  const handleRemoveFromCart = (index) => {
+    setCart((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
+  const handleClearCart = () => {
+    if (cart.length === 0) return
+    if (window.confirm('Clear all items from the current cart?')) {
+      setCart([])
+      setInvoiceDiscount(0)
+      setSelectedCustomer(null)
+    }
+  }
+
+  // Cart Totals Calculations
+  const cartSubtotal = cart.reduce(
+    (sum, item) => sum + item.quantity * item.unitPrice - (Number(item.discount) || 0),
+    0
+  )
+  const grandTotal = Math.max(0, cartSubtotal - Number(invoiceDiscount) + Number(invoiceTax))
+
+  // Open Payment Modal
+  const handleOpenPayment = () => {
+    if (cart.length === 0) return
+    setPaymentMethod('CASH')
+    setCashTendered(String(grandTotal))
+    setCardLastFour('')
+    setBankRef('')
+    setSplitPayments([
+      { method: 'CASH', amount: grandTotal },
+    ])
+    setCheckoutError('')
+    setIsPaymentModalOpen(true)
+  }
+
+  // Checkout Submission
+  const handleProcessCheckout = async (e) => {
+    e.preventDefault()
+    setCheckoutError('')
+    setIsCheckingOut(true)
+
+    try {
+      // Build payment payload
+      let paymentsPayload = []
+      if (paymentMethod === 'CASH') {
+        paymentsPayload = [{ method: 'CASH', amount: grandTotal }]
+      } else if (paymentMethod === 'CARD') {
+        paymentsPayload = [
+          { method: 'CARD', amount: grandTotal, cardLastFour: cardLastFour.trim() || undefined },
+        ]
+      } else if (paymentMethod === 'BANK_TRANSFER') {
+        paymentsPayload = [
+          { method: 'BANK_TRANSFER', amount: grandTotal, transactionRef: bankRef.trim() || undefined },
+        ]
+      } else if (paymentMethod === 'SPLIT') {
+        const splitSum = splitPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+        if (splitSum < grandTotal - 0.01) {
+          throw new Error(
+            `Split payments total (Rs. ${splitSum.toLocaleString()}) does not cover the invoice total (Rs. ${grandTotal.toLocaleString()}).`
+          )
+        }
+        paymentsPayload = splitPayments.map((p) => ({
+          method: p.method,
+          amount: Number(p.amount),
+        }))
+      }
+
+      // Build cart items payload
+      const itemsPayload = cart.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: Number(item.discount) || 0,
+        deviceIds: item.isSerialized ? item.deviceIds : undefined,
+      }))
+
+      const payload = {
+        customerId: selectedCustomer ? selectedCustomer.id : null,
+        items: itemsPayload,
+        discount: Number(invoiceDiscount) || 0,
+        tax: Number(invoiceTax) || 0,
+        payments: paymentsPayload,
+        cashReceived: paymentMethod === 'CASH' ? Number(cashTendered) : grandTotal,
+      }
+
+      const res = await posAPI.checkout(payload)
+      const sale = res.data?.data
+
+      // Success: clear cart, show receipt modal
+      setCompletedSale(sale)
+      setCart([])
+      setInvoiceDiscount(0)
+      setSelectedCustomer(null)
+      setIsPaymentModalOpen(false)
+      setIsReceiptOpen(true)
+
+      // Refresh catalog stock
+      fetchCatalog()
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error?.message || err.message || 'Transaction failed.')
+    } finally {
+      setIsCheckingOut(false)
+    }
+  }
+
+  // Quick Customer Registration
+  const handleQuickCustomerSubmit = async (e) => {
+    e.preventDefault()
+    setCustSubmitting(true)
+    try {
+      const res = await posAPI.quickCustomer({
+        name: custName.trim(),
+        phone: custPhone.trim(),
+        email: custEmail.trim() || undefined,
+        nic: custNic.trim() || undefined,
+        address: custAddress.trim() || undefined,
+      })
+      const newCust = res.data?.data
+      setSelectedCustomer(newCust)
+      setIsCustomerModalOpen(false)
+      setCustName('')
+      setCustPhone('')
+      showToast(`Customer ${newCust.name} selected`)
+    } catch (err) {
+      alert(err.response?.data?.error?.message || 'Failed to create customer.')
+    } finally {
+      setCustSubmitting(false)
+    }
+  }
 
   return (
-    <div className="h-[calc(100vh-6.5rem)] flex flex-col lg:flex-row gap-4 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 overflow-hidden">
-      {/* Left Area: Product Browser & Barcode Search */}
-      <div className="flex-1 flex flex-col h-full bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border overflow-hidden shadow-subtle">
-        {/* Search & Barcode Header */}
-        <div className="p-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/50 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Scan Barcode or Search by IMEI / Serial / Device Name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="md"
-              leftIcon={<ScanLine className="w-4 h-4 text-purpleAccent-500" />}
-              className="shrink-0"
-              onClick={() => alert('IMEI Scanner Camera or Optical reader activated.')}
-            >
-              Scan IMEI
-            </Button>
-          </div>
+    <div className="h-[calc(100vh-5.5rem)] flex flex-col space-y-3 pb-2">
+      {/* Toast Alert */}
+      {toastMsg && (
+        <div className="fixed top-20 right-8 z-50 p-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat
-                    ? 'bg-brand-600 text-white shadow-glow-blue'
-                    : 'bg-white dark:bg-dark-surface text-slate-600 dark:text-slate-300 hover:bg-slate-100 border border-slate-200/80 dark:border-dark-border'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+      {errorMsg && (
+        <div className="fixed top-20 right-8 z-50 p-3.5 rounded-xl bg-rose-600 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 animate-in fade-in">
+          <AlertCircle className="w-4 h-4" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* POS Top Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border shrink-0 shadow-sm">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-black shadow-glow-blue">
+            <ShoppingBag className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+              NexaPOS Billing Terminal
+            </h1>
+            <p className="text-[11px] text-slate-400">
+              Cashier: <span className="font-semibold text-brand-600 dark:text-brand-400">{user?.name}</span> • Colombo Main
+            </p>
           </div>
         </div>
 
-        {/* Product Cards Grid */}
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filteredProducts.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => addToCart(p)}
-              className="flex flex-col justify-between p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-surface/30 hover:border-brand-500/60 hover:shadow-subtle hover:bg-white dark:hover:bg-dark-surface transition-all cursor-pointer group"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl">{p.image}</span>
-                  {p.isSerialized ? (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purpleAccent-50 text-purpleAccent-700 dark:bg-purpleAccent-950/60 dark:text-purpleAccent-300 border border-purpleAccent-200 dark:border-purpleAccent-800">
-                      IMEI
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      Qty: {p.stock}
-                    </span>
-                  )}
-                </div>
-                <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-brand-600 transition-colors">
-                  {p.name}
-                </h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">{p.category}</p>
-              </div>
-
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-dark-border flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-900 dark:text-white">
-                  {formatLKR(p.price, false)}
-                </span>
-                <span className="p-1 rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400 group-hover:bg-brand-600 group-hover:text-white transition-colors">
-                  <Plus className="w-3.5 h-3.5" />
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* Optical Scanner Barcode / IMEI Fast Input */}
+        <form onSubmit={handleScannerSubmit} className="relative w-full sm:max-w-md">
+          <Barcode className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-purpleAccent-500" />
+          <input
+            ref={scannerRef}
+            type="text"
+            placeholder="Scan barcode, SKU, or IMEI to instantly add..."
+            value={scannerInput}
+            onChange={(e) => setScannerInput(e.target.value)}
+            className="w-full pl-9 pr-24 py-1.5 text-xs rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/40 dark:bg-dark-surface font-mono focus:outline-none focus:ring-2 focus:ring-purpleAccent-500"
+          />
+          <button
+            type="submit"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 text-[10px] font-bold bg-purpleAccent-600 text-white rounded-lg hover:bg-purpleAccent-700 transition-colors"
+          >
+            Scan Item
+          </button>
+        </form>
       </div>
 
-      {/* Right Area: POS Live Billing Cart */}
-      <div className="w-full lg:w-96 flex flex-col h-full bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
-        {/* Cart Header & Customer Selector */}
-        <div className="p-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/50">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-brand-500" />
-              Active Bill (#INV-10493)
-            </span>
-            <button
-              type="button"
-              onClick={() => setCart([])}
-              className="text-xs text-rose-500 hover:text-rose-600 font-semibold flex items-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Clear
-            </button>
+      {/* POS 3-COLUMN LAYOUT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
+        {/* LEFT COLUMN: Categories & Brand Filters (2 cols on lg) */}
+        <div className="hidden lg:flex lg:col-span-2 flex-col space-y-3 bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border overflow-y-auto">
+          <div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Categories</h3>
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                  selectedCategory === ''
+                    ? 'bg-brand-500 text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface'
+                }`}
+              >
+                All Departments
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(c.id)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors truncate ${
+                    selectedCategory === c.id
+                      ? 'bg-brand-500 text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-                {customer}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const name = prompt('Enter customer name or phone:', customer)
-                if (name) setCustomer(name)
-              }}
-              className="text-xs text-brand-600 hover:underline font-medium"
+          <div className="pt-2 border-t border-slate-100 dark:border-dark-border">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Brands</h3>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
             >
-              Change
-            </button>
+              <option value="">All Brands</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
-              <Smartphone className="w-10 h-10 mb-2 opacity-30" />
-              <p className="text-xs font-semibold">Cart is currently empty</p>
-              <p className="text-[10px] mt-1">Scan or tap products from catalog to bill.</p>
-            </div>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item.id}
-                className="p-2.5 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50/40 dark:bg-dark-surface/40 space-y-1.5"
+        {/* CENTER COLUMN: Products Grid (6 cols on lg) */}
+        <div className="lg:col-span-6 flex flex-col space-y-3 bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0">
+          {/* Search bar inside products */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search product name, SKU, or model..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Product Cards Grid */}
+          <div className="flex-1 overflow-y-auto pr-1">
+            {isLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} className="h-40 rounded-xl" />
+                ))}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                <ShoppingBag className="w-10 h-10 text-slate-300 mb-2" />
+                <p className="text-xs text-slate-500">No products match your search.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {products.map((p) => {
+                  const isOutOfStock = p.availableStock <= 0
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => !isOutOfStock && handleProductClick(p)}
+                      className={`relative flex flex-col justify-between p-3 rounded-2xl border transition-all text-left group ${
+                        isOutOfStock
+                          ? 'opacity-60 bg-slate-50 dark:bg-dark-surface/40 border-slate-200 cursor-not-allowed'
+                          : 'bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border hover:border-brand-500 hover:shadow-md cursor-pointer'
+                      }`}
+                    >
+                      {/* Image Thumbnail */}
+                      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-100 dark:bg-dark-card flex items-center justify-center mb-2">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Smartphone className="w-8 h-8 text-slate-300" />
+                        )}
+                        {p.isSerialized && (
+                          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-purpleAccent-600 text-white flex items-center gap-1 shadow">
+                            <ScanLine className="w-2.5 h-2.5" /> IMEI
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div>
+                        <p className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1 group-hover:text-brand-600 transition-colors">
+                          {p.name}
+                        </p>
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          {p.sku}
+                        </span>
+                      </div>
+
+                      {/* Stock & Price */}
+                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-dark-border/60 flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900 dark:text-white">
+                          {formatLKR(p.retailPrice)}
+                        </span>
+
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                            isOutOfStock
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60'
+                              : p.availableStock <= 3
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60'
+                          }`}
+                        >
+                          {isOutOfStock ? 'Out' : `${p.availableStock} in stock`}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Shopping Cart & Checkout (4 cols on lg) */}
+        <div className="lg:col-span-4 flex flex-col bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0 shadow-sm">
+          {/* Customer Selection */}
+          <div className="pb-3 border-b border-slate-100 dark:border-dark-border shrink-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-brand-600" />
+                Customer
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCustomerModalOpen(true)}
+                className="text-[10px] font-bold text-brand-600 hover:underline"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                      {item.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      {formatLKR(item.price)} each
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    className="text-slate-400 hover:text-rose-500 p-0.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                + Quick Add
+              </button>
+            </div>
 
-                {/* Serialized IMEI Indicator */}
-                {item.isSerialized && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purpleAccent-50 dark:bg-purpleAccent-950/40 border border-purpleAccent-200/50 dark:border-purpleAccent-900/50 text-[10px] text-purpleAccent-700 dark:text-purpleAccent-300">
-                    <ScanLine className="w-3 h-3 shrink-0" />
-                    <span className="font-mono truncate">IMEI: {item.selectedIMEI}</span>
-                  </div>
-                )}
+            <div className="flex gap-2">
+              <select
+                value={selectedCustomer ? selectedCustomer.id : ''}
+                onChange={(e) => {
+                  const found = customers.find((c) => c.id === e.target.value)
+                  setSelectedCustomer(found || null)
+                }}
+                className="flex-1 px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
+              >
+                <option value="">Walk-in Customer (Cash)</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.phone})
+                  </option>
+                ))}
+              </select>
+              {selectedCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomer(null)}
+                  className="p-1 text-slate-400 hover:text-rose-500 rounded-lg"
+                  title="Remove customer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
 
-                {/* Qty & Line Total */}
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-2">
+          {/* Cart Items List */}
+          <div className="flex-1 overflow-y-auto py-2 space-y-2 min-h-0 pr-1">
+            {cart.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
+                <ShoppingBag className="w-10 h-10 mb-2 stroke-[1.5]" />
+                <p className="text-xs font-medium">Cart is currently empty</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Click products or scan barcodes</p>
+              </div>
+            ) : (
+              cart.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-surface/50 space-y-1.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
+                        {item.name}
+                      </h4>
+                      {item.isSerialized && item.device && (
+                        <div className="text-[10px] text-purpleAccent-600 font-mono font-bold flex items-center gap-1">
+                          <ScanLine className="w-3 h-3" />
+                          IMEI: {item.device.imei1}
+                          {item.device.storage && <span>({item.device.storage})</span>}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromCart(idx)}
+                      className="text-slate-400 hover:text-rose-500 p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    {/* Quantity controls */}
                     {!item.isSerialized ? (
-                      <>
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-lg p-0.5">
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, -1)}
-                          className="w-6 h-6 rounded-md bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+                          onClick={() => handleUpdateQty(idx, -1)}
+                          className="p-1 text-slate-500 hover:text-slate-900"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="text-xs font-bold px-1">{item.cartQty}</span>
+                        <span className="text-xs font-bold px-1.5">{item.quantity}</span>
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, 1)}
-                          className="w-6 h-6 rounded-md bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+                          onClick={() => handleUpdateQty(idx, 1)}
+                          className="p-1 text-slate-500 hover:text-slate-900"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
-                      </>
+                      </div>
                     ) : (
-                      <span className="text-[11px] font-bold text-slate-500">1 Unit</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purpleAccent-700 rounded-md">
+                        1 Unit
+                      </span>
                     )}
+
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
+                        {formatLKR(item.quantity * item.unitPrice - (Number(item.discount) || 0))}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs font-black text-slate-900 dark:text-white">
-                    {formatLKR(item.price * item.cartQty)}
-                  </span>
                 </div>
+              ))
+            )}
+          </div>
+
+          {/* Cart Summary & Checkout */}
+          <div className="pt-3 border-t border-slate-200 dark:border-dark-border shrink-0 space-y-2">
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Subtotal:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{formatLKR(cartSubtotal)}</span>
               </div>
-            ))
-          )}
-        </div>
+              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                <span>Discount (LKR):</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={invoiceDiscount}
+                  onChange={(e) => setInvoiceDiscount(e.target.value)}
+                  className="w-20 px-1.5 py-0.5 text-right font-bold text-xs rounded border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
+                />
+              </div>
+              <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-1 border-t border-slate-100 dark:border-dark-border">
+                <span>Total Payable:</span>
+                <span className="text-base text-brand-600 dark:text-brand-400">{formatLKR(grandTotal)}</span>
+              </div>
+            </div>
 
-        {/* Bill Summary & Payment Actions */}
-        <div className="p-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/60 space-y-3">
-          <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-500 dark:text-slate-400">
-              <span>Subtotal</span>
-              <span>{formatLKR(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-500 dark:text-slate-400">
-              <span>Discount</span>
-              <span>Rs. 0.00</span>
-            </div>
-            <div className="flex justify-between text-base font-extrabold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-dark-border">
-              <span>Payable Total</span>
-              <span className="text-brand-600 dark:text-brand-400">{formatLKR(total)}</span>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleClearCart}
+                disabled={cart.length === 0}
+                className="col-span-1 text-xs text-rose-600 hover:bg-rose-50"
+              >
+                Clear
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleOpenPayment}
+                disabled={cart.length === 0}
+                className="col-span-2 shadow-glow-blue font-bold text-xs"
+              >
+                Pay Now (F9)
+              </Button>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setPaymentType('cash')
-                setIsCheckoutModalOpen(true)
-              }}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center justify-center p-2 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border hover:border-brand-500 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs font-semibold gap-1"
-            >
-              <Banknote className="w-4 h-4 text-emerald-500" />
-              Cash
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPaymentType('card')
-                setIsCheckoutModalOpen(true)
-              }}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center justify-center p-2 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border hover:border-brand-500 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs font-semibold gap-1"
-            >
-              <CreditCard className="w-4 h-4 text-brand-500" />
-              Card
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPaymentType('split')
-                setIsCheckoutModalOpen(true)
-              }}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center justify-center p-2 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border hover:border-brand-500 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs font-semibold gap-1"
-            >
-              <Split className="w-4 h-4 text-purpleAccent-500" />
-              Split
-            </button>
-          </div>
-
-          <Button
-            variant="primary"
-            size="lg"
-            disabled={cart.length === 0}
-            onClick={() => setIsCheckoutModalOpen(true)}
-            className="w-full shadow-glow-blue font-bold text-sm"
-          >
-            Complete Sale ({formatLKR(total, false)})
-          </Button>
         </div>
       </div>
 
-      {/* Checkout Preview Modal */}
+      {/* MODAL 1: SERIALIZED PHONE IMEI PICKER */}
       <Modal
-        isOpen={isCheckoutModalOpen}
-        onClose={() => setIsCheckoutModalOpen(false)}
-        title="Finalize POS Sale & Print Invoice"
-        description="Verify IMEI allocation, payment settlement and warranty certificate."
+        isOpen={isImeiModalOpen}
+        onClose={() => setIsImeiModalOpen(false)}
+        title="Select In-Stock Phone IMEI"
+        description={`Model: ${targetSerializedProduct?.name || ''}`}
         maxWidth="lg"
-        footer={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsCheckoutModalOpen(false)}
-            >
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            This smartphone requires assigning a specific unique IMEI. Select the unit from the shelf:
+          </p>
+
+          <div className="max-h-60 overflow-y-auto space-y-2 border rounded-xl p-2 border-slate-200 dark:border-dark-border">
+            {targetSerializedProduct?.availableDevices?.length === 0 ? (
+              <p className="text-xs text-rose-600 p-4 text-center">No units currently available in stock.</p>
+            ) : (
+              targetSerializedProduct?.availableDevices?.map((dev) => {
+                const isSelected = selectedImeiDevices.some((d) => d.id === dev.id)
+                return (
+                  <div
+                    key={dev.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedImeiDevices((prev) => prev.filter((d) => d.id !== dev.id))
+                      } else {
+                        setSelectedImeiDevices([dev]) // Single unit select per click
+                      }
+                    }}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/30'
+                        : 'border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-dark-surface'
+                    }`}
+                  >
+                    <div>
+                      <code className="font-mono font-bold text-brand-600 dark:text-brand-400">
+                        {dev.imei1}
+                      </code>
+                      <span className="text-[11px] text-slate-500 ml-2">
+                        {dev.storage || ''} {dev.color || ''}
+                      </span>
+                    </div>
+                    <Badge variant={isSelected ? 'primary' : 'success'} size="sm">
+                      {isSelected ? 'Selected' : 'Available'}
+                    </Badge>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-border">
+            <Button variant="outline" size="sm" onClick={() => setIsImeiModalOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                alert('Sale completed! Warranty certificate generated for registered IMEI units.')
-                setIsCheckoutModalOpen(false)
-                setCart([])
-              }}
+              disabled={selectedImeiDevices.length === 0}
+              onClick={handleConfirmImeiSelection}
             >
-              Confirm & Print Invoice
+              Add Selected IMEI to Cart
             </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-dark-surface/60 border border-slate-100 dark:border-dark-border flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400">Total Amount Due</p>
-              <p className="text-xl font-black text-brand-600 dark:text-brand-400">
-                {formatLKR(total)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400">Selected Method</p>
-              <Badge variant="purple" size="md" className="uppercase">
-                {paymentType} Payment
-              </Badge>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-bold uppercase text-slate-400">
-              Warranty & Serialized Items:
-            </p>
-            {cart
-              .filter((i) => i.isSerialized)
-              .map((i) => (
-                <div
-                  key={i.id}
-                  className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 dark:border-dark-border text-xs"
-                >
-                  <span className="font-semibold">{i.name}</span>
-                  <span className="font-mono text-purpleAccent-600 dark:text-purpleAccent-400">
-                    IMEI: {i.selectedIMEI}
-                  </span>
-                </div>
-              ))}
           </div>
         </div>
+      </Modal>
+
+      {/* MODAL 2: PAYMENT & TENDER DIALOG */}
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title="POS Payment & Checkout"
+        description={`Invoice Total: ${formatLKR(grandTotal)}`}
+        maxWidth="md"
+      >
+        <form onSubmit={handleProcessCheckout} className="space-y-4">
+          {checkoutError && (
+            <div className="p-3 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 text-xs font-medium">
+              {checkoutError}
+            </div>
+          )}
+
+          {/* Payment Method Selector */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: 'CASH', label: 'Cash', icon: Banknote },
+              { id: 'CARD', label: 'Card', icon: CreditCard },
+              { id: 'BANK_TRANSFER', label: 'Bank', icon: Building },
+              { id: 'SPLIT', label: 'Split', icon: Split },
+            ].map((m) => {
+              const Icon = m.icon
+              const isSelected = paymentMethod === m.id
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.id)}
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-xs font-bold ${
+                    isSelected
+                      ? 'border-brand-600 bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400'
+                      : 'border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-dark-surface text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{m.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Cash Details */}
+          {paymentMethod === 'CASH' && (
+            <div className="space-y-3">
+              <Input
+                label="Cash Tendered (LKR)"
+                type="number"
+                value={cashTendered}
+                onChange={(e) => setCashTendered(e.target.value)}
+                required
+              />
+
+              {/* Quick Cash Presets */}
+              <div className="flex flex-wrap gap-1.5">
+                {[grandTotal, 5000, 10000, 50000, 100000].map((amt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setCashTendered(String(amt))}
+                    className="px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-dark-border hover:bg-slate-100 dark:hover:bg-dark-surface"
+                  >
+                    {idx === 0 ? 'Exact' : formatLKR(amt, false)}
+                  </button>
+                ))}
+              </div>
+
+              {Number(cashTendered) > grandTotal && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 flex justify-between text-xs font-bold">
+                  <span>Change to Return:</span>
+                  <span>{formatLKR(Number(cashTendered) - grandTotal)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Card Details */}
+          {paymentMethod === 'CARD' && (
+            <Input
+              label="Card Last 4 Digits (Optional)"
+              maxLength={4}
+              value={cardLastFour}
+              onChange={(e) => setCardLastFour(e.target.value)}
+              placeholder="e.g. 4829"
+            />
+          )}
+
+          {/* Bank Transfer Details */}
+          {paymentMethod === 'BANK_TRANSFER' && (
+            <Input
+              label="Bank Reference / Approval Code"
+              value={bankRef}
+              onChange={(e) => setBankRef(e.target.value)}
+              placeholder="e.g. COMM-TR-908129"
+            />
+          )}
+
+          {/* Split Payment Details */}
+          {paymentMethod === 'SPLIT' && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Split Tenders (Must total {formatLKR(grandTotal)})
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400">Cash Amount</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    onChange={(e) => {
+                      const cashVal = Number(e.target.value) || 0
+                      const cardVal = Math.max(0, grandTotal - cashVal)
+                      setSplitPayments([
+                        { method: 'CASH', amount: cashVal },
+                        { method: 'CARD', amount: cardVal },
+                      ])
+                    }}
+                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-dark-border"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">Card Amount</label>
+                  <input
+                    type="number"
+                    value={splitPayments.find((p) => p.method === 'CARD')?.amount || ''}
+                    readOnly
+                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-surface font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-border">
+            <Button variant="outline" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" type="submit" isLoading={isCheckingOut} className="font-bold">
+              Complete Sale & Print Receipt
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 3: THERMAL RECEIPT DISPLAY */}
+      <Modal
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+        title="Transaction Completed"
+        description={`Invoice #${completedSale?.invoiceNumber || ''}`}
+        maxWidth="md"
+      >
+        <ThermalReceipt sale={completedSale} onClose={() => setIsReceiptOpen(false)} />
+      </Modal>
+
+      {/* MODAL 4: QUICK CUSTOMER REGISTRATION */}
+      <Modal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
+        title="Quick Customer Registration"
+        description="Register a new customer for warranty tracking and loyalty points."
+        maxWidth="md"
+      >
+        <form onSubmit={handleQuickCustomerSubmit} className="space-y-3">
+          <Input
+            label="Customer Full Name"
+            value={custName}
+            onChange={(e) => setCustName(e.target.value)}
+            placeholder="e.g. Nadeeka Senanayake"
+            required
+          />
+          <Input
+            label="Phone Number"
+            value={custPhone}
+            onChange={(e) => setCustPhone(e.target.value)}
+            placeholder="e.g. 0771234567"
+            required
+          />
+          <Input
+            label="Email Address (Optional)"
+            type="email"
+            value={custEmail}
+            onChange={(e) => setCustEmail(e.target.value)}
+            placeholder="nadeeka@gmail.com"
+          />
+          <Input
+            label="NIC / National ID (Optional)"
+            value={custNic}
+            onChange={(e) => setCustNic(e.target.value)}
+            placeholder="e.g. 199028192831"
+          />
+          <Input
+            label="Address (Optional)"
+            value={custAddress}
+            onChange={(e) => setCustAddress(e.target.value)}
+            placeholder="Colombo 05"
+          />
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={() => setIsCustomerModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" type="submit" isLoading={custSubmitting}>
+              Save Customer
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   )
 }
-
