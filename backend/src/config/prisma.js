@@ -5,6 +5,8 @@ export const prisma = new PrismaClient({
   log: env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 })
 
+export default prisma
+
 export async function connectDatabase() {
   try {
     await prisma.$connect()

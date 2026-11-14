@@ -10,6 +10,9 @@ import inventoryRoutes from './inventory.routes.js'
 import supplierRoutes from './supplier.routes.js'
 import purchaseRoutes from './purchase.routes.js'
 import posRoutes from './pos.routes.js'
+import customerRoutes from './customer.routes.js'
+import warrantyRoutes from './warranty.routes.js'
+import repairRoutes from './repair.routes.js'
 
 const router = Router()
 
@@ -24,5 +27,8 @@ router.use('/inventory', inventoryRoutes)
 router.use('/suppliers', supplierRoutes)
 router.use('/purchases', purchaseRoutes)
 router.use('/pos', posRoutes)
+router.use('/customers', customerRoutes)
+router.use('/warranties', warrantyRoutes)
+router.use('/repairs', repairRoutes)
 
 export default router

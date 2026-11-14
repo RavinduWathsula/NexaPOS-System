@@ -148,6 +148,35 @@ export const posAPI = {
   sales: (params) => api.get('/pos/sales', { params }),
 }
 
+export const customersAPI = {
+  list: (params) => api.get('/customers', { params }),
+  get: (id) => api.get(`/customers/${id}`),
+  create: (data) => api.post('/customers', data),
+  update: (id, data) => api.put(`/customers/${id}`, data),
+  delete: (id) => api.delete(`/customers/${id}`),
+}
+
+export const warrantiesAPI = {
+  list: (params) => api.get('/warranties', { params }),
+  lookup: (query) => api.get('/warranties/lookup', { params: { query } }),
+  get: (id) => api.get(`/warranties/${id}`),
+  createClaim: (data) => api.post('/warranties/claim', data),
+  reviewClaim: (id, data) => api.post(`/warranties/claim/${id}/review`, data),
+  create: (data) => api.post('/warranties', data),
+}
+
+export const repairsAPI = {
+  list: (params) => api.get('/repairs', { params }),
+  get: (id) => api.get(`/repairs/${id}`),
+  create: (data) => api.post('/repairs', data),
+  updateStatus: (id, data) => api.put(`/repairs/${id}/status`, data),
+  addPart: (id, data) => api.post(`/repairs/${id}/parts`, data),
+  removePart: (partId) => api.delete(`/repairs/parts/${partId}`),
+  complete: (id, data) => api.post(`/repairs/${id}/complete`, data),
+  recordPayment: (id, data) => api.post(`/repairs/${id}/payment`, data),
+  myAssigned: (params) => api.get('/repairs/technician/assigned', { params }),
+}
+
 export const healthAPI = {
   check: () => api.get('/health'),
 }
