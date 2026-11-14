@@ -1,4 +1,5 @@
 import {
+  listRoles,
   listStaffUsers,
   getStaffUserById,
   createStaffUser,
@@ -6,6 +7,15 @@ import {
   deleteStaffUser,
 } from '../services/user.service.js'
 import { successResponse } from '../utils/apiResponse.js'
+
+export async function getRoles(req, res, next) {
+  try {
+    const roles = await listRoles()
+    return successResponse(res, roles, 'Roles list retrieved successfully.')
+  } catch (error) {
+    next(error)
+  }
+}
 
 export async function getUsers(req, res, next) {
   try {

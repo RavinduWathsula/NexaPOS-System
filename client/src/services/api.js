@@ -66,6 +66,7 @@ export const authAPI = {
 
 export const usersAPI = {
   list: () => api.get('/users'),
+  getRoles: () => api.get('/users/roles'),
   get: (id) => api.get(`/users/${id}`),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
@@ -211,6 +212,11 @@ export const returnsAPI = {
 
 export const auditAPI = {
   list: (params) => api.get('/audit-logs', { params }),
+}
+
+export const settingsAPI = {
+  get: (group) => api.get('/settings', { params: { group } }),
+  update: (data) => api.put('/settings', data),
 }
 
 export const healthAPI = {

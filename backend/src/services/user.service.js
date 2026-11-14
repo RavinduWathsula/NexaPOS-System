@@ -1,6 +1,17 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../config/prisma.js'
 
+export async function listRoles() {
+  return prisma.role.findMany({
+    include: {
+      rolePermissions: {
+        include: { permission: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  })
+}
+
 export async function listStaffUsers() {
   const users = await prisma.user.findMany({
     select: {

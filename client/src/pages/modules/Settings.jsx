@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Settings as SettingsIcon,
   Store,
@@ -8,20 +8,70 @@ import {
   Printer,
   Bell,
   Save,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
+import { settingsAPI } from '@/services/api'
 
 export function Settings() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSave = (e) => {
+  const [settings, setSettings] = useState({
+    store_name: 'NexaPOS Mobile & Electronics (Pvt) Ltd',
+    store_address: 'No. 142 Galle Road, Colombo 03, Sri Lanka',
+    store_phone: '+94 11 234 5678 / +94 77 123 4567',
+    store_email: 'info@nexapos.lk',
+    currency_code: 'LKR',
+    currency_symbol: 'Rs.',
+    printer_paper_width: '80mm',
+    printer_footer_note: 'Thank you for shopping at NexaPOS! Keep invoice for warranty.',
+    pos_auto_warranty: 'true',
+    pos_strict_imei: 'true',
+  })
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setLoading(true)
+        const res = await settingsAPI.get()
+        const map = res.data?.data?.map || {}
+        if (Object.keys(map).length > 0) {
+          setSettings((prev) => ({ ...prev, ...map }))
+        }
+      } catch (err) {
+        console.warn('Could not load persistent settings, using defaults:', err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  const handleSave = async (e) => {
     e.preventDefault()
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      setSaving(true)
+      setError('')
+      await settingsAPI.update(settings)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleChange = (key, val) => {
+    setSettings((prev) => ({ ...prev, [key]: val }))
   }
 
   return (
@@ -44,10 +94,16 @@ export function Settings() {
 
         {saved && (
           <Badge variant="success" size="lg" className="animate-in fade-in">
-            Settings Saved Successfully!
+            Settings Saved to Database!
           </Badge>
         )}
       </div>
+
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Store Profile Card */}
@@ -65,19 +121,27 @@ export function Settings() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Store Trade Name"
-                defaultValue="NexaPOS Mobile & Electronics (Pvt) Ltd"
+                value={settings.store_name}
+                onChange={(e) => handleChange('store_name', e.target.value)}
+                required
               />
               <Input
                 label="Branch Location"
-                defaultValue="No. 142 Galle Road, Colombo 03, Sri Lanka"
+                value={settings.store_address}
+                onChange={(e) => handleChange('store_address', e.target.value)}
+                required
               />
               <Input
                 label="Contact Hotline"
-                defaultValue="+94 11 234 5678 / +94 77 123 4567"
+                value={settings.store_phone}
+                onChange={(e) => handleChange('store_phone', e.target.value)}
+                required
               />
               <Input
                 label="Store Email"
-                defaultValue="info@nexapos.lk"
+                value={settings.store_email}
+                onChange={(e) => handleChange('store_email', e.target.value)}
+                required
               />
             </div>
           </CardContent>
@@ -98,13 +162,14 @@ export function Settings() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Primary Currency"
-                defaultValue="LKR (Sri Lankan Rupee)"
+                value={settings.currency_code}
                 disabled
-                helperText="Enforced by business requirements"
+                helperText="Enforced to LKR (Sri Lankan Rupee)"
               />
               <Input
                 label="Currency Symbol"
-                defaultValue="Rs."
+                value={settings.currency_symbol}
+                onChange={(e) => handleChange('currency_symbol', e.target.value)}
               />
             </div>
 
@@ -120,8 +185,8 @@ export function Settings() {
                 </div>
                 <input
                   type="checkbox"
-                  defaultChecked
-                  disabled
+                  checked={settings.pos_strict_imei === 'true'}
+                  onChange={(e) => handleChange('pos_strict_imei', String(e.target.checked))}
                   className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
                 />
               </div>
@@ -139,7 +204,8 @@ export function Settings() {
                 </div>
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={settings.pos_auto_warranty === 'true'}
+                  onChange={(e) => handleChange('pos_auto_warranty', String(e.target.checked))}
                   className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
                 />
               </div>
@@ -151,7 +217,7 @@ export function Settings() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <Printer className="w-4 h-4 text-purpleAccent-500" />
+              <Printer className="w-4 h-4 text-purple-500" />
               Thermal POS Printer & Invoicing
             </CardTitle>
             <CardDescription>
@@ -160,31 +226,35 @@ export function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Printer Paper Width"
-                defaultValue="80mm"
-                options={[
-                  { label: '80mm (Standard POS Thermal)', value: '80mm' },
-                  { label: '58mm (Compact Mobile POS)', value: '58mm' },
-                  { label: 'A4 / A5 Invoice Sheet', value: 'a4' },
-                ]}
-              />
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Printer Paper Width
+                </label>
+                <Select
+                  value={settings.printer_paper_width}
+                  onChange={(e) => handleChange('printer_paper_width', e.target.value)}
+                >
+                  <option value="80mm">80mm (Standard POS Thermal)</option>
+                  <option value="58mm">58mm (Compact Mobile POS)</option>
+                  <option value="a4">A4 / A5 Invoice Sheet</option>
+                </Select>
+              </div>
+
               <Input
                 label="Receipt Footer Note"
-                defaultValue="Thank you for shopping at NexaPOS! Keep invoice for warranty."
+                value={settings.printer_footer_note}
+                onChange={(e) => handleChange('printer_footer_note', e.target.value)}
               />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-3">
-            <Button type="button" variant="outline" size="sm">
-              Restore Defaults
-            </Button>
             <Button
               type="submit"
               variant="primary"
               size="sm"
-              leftIcon={<Save className="w-4 h-4" />}
+              isLoading={saving}
             >
+              <Save className="w-4 h-4 mr-2" />
               Save Configuration
             </Button>
           </CardFooter>
@@ -193,4 +263,3 @@ export function Settings() {
     </div>
   )
 }
-

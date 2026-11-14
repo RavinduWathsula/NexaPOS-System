@@ -18,6 +18,7 @@ import expenseRoutes from './expense.routes.js'
 import cashSessionRoutes from './cashSession.routes.js'
 import returnRoutes from './return.routes.js'
 import auditRoutes from './audit.routes.js'
+import settingRoutes from './setting.routes.js'
 
 const router = Router()
 
@@ -40,5 +41,6 @@ router.use('/expenses', expenseRoutes)
 router.use('/cash-sessions', cashSessionRoutes)
 router.use('/returns', returnRoutes)
 router.use('/audit-logs', auditRoutes)
+router.use('/settings', settingRoutes)
 
 export default router

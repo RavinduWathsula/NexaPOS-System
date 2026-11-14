@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  getRoles,
   getUsers,
   getUser,
   createUser,
@@ -15,6 +16,9 @@ const router = Router()
 
 // All user management routes require valid JWT
 router.use(authenticateJWT)
+
+// List roles
+router.get('/roles', authorizeRoles('SUPER_ADMIN', 'MANAGER'), getRoles)
 
 // List users (Super Admin & Manager)
 router.get('/', authorizeRoles('SUPER_ADMIN', 'MANAGER'), getUsers)
