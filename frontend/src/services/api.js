@@ -13,7 +13,7 @@ export const api = axios.create({
 // Request interceptor: attach JWT Bearer token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('nexapos_access_token')
+    const token = sessionStorage.getItem('nexapos_access_token') || localStorage.getItem('nexapos_access_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -29,7 +29,7 @@ api.interceptors.response.use(
     const originalRequest = error.config
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
-      const refreshToken = localStorage.getItem('nexapos_refresh_token')
+      const refreshToken = sessionStorage.getItem('nexapos_refresh_token') || localStorage.getItem('nexapos_refresh_token')
 
       if (refreshToken) {
         try {
@@ -37,11 +37,13 @@ api.interceptors.response.use(
           const newAccessToken = res.data?.data?.accessToken
 
           if (newAccessToken) {
+            sessionStorage.setItem('nexapos_access_token', newAccessToken)
             localStorage.setItem('nexapos_access_token', newAccessToken)
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
             return api(originalRequest)
           }
         } catch (refreshErr) {
+          sessionStorage.clear()
           localStorage.removeItem('nexapos_access_token')
           localStorage.removeItem('nexapos_refresh_token')
           localStorage.removeItem('nexapos_user')

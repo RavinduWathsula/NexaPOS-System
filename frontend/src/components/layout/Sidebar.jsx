@@ -36,7 +36,7 @@ export const NAVIGATION_GROUPS = [
         name: 'Dashboard',
         path: '/',
         icon: LayoutDashboard,
-        allowedRoles: ['SUPER_ADMIN', 'MANAGER'],
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_KEEPER'],
       },
       {
         name: 'POS Terminal',

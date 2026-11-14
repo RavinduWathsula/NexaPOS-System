@@ -6,13 +6,12 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  Check,
   Smartphone,
   KeyRound,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react'
-import { useAuthStore, ROLES, ROLE_LABELS, ROLE_BADGE_COLORS } from '@/stores/authStore'
+import { useAuthStore, ROLE_LABELS, ROLE_BADGE_COLORS } from '@/stores/authStore'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -24,7 +23,7 @@ export function UserProfileDropdown() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const dropdownRef = useRef(null)
   const navigate = useNavigate()
-  const { user, logout, switchRole } = useAuthStore()
+  const { user, logout } = useAuthStore()
 
   // Change password states
   const [currentPassword, setCurrentPassword] = useState('')
@@ -173,39 +172,6 @@ export function UserProfileDropdown() {
                   Launch POS Terminal
                 </button>
               )}
-            </div>
-
-            {/* Role Switcher (Preview Simulator for Testing All 5 Roles) */}
-            <div className="p-3 border-t border-slate-100 dark:border-dark-border">
-              <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Switch Role (Live RBAC Test)
-              </p>
-              <div className="space-y-1">
-                {Object.entries(ROLES).map(([roleKey, roleVal]) => (
-                  <button
-                    key={roleVal}
-                    type="button"
-                    onClick={() => {
-                      switchRole(roleVal)
-                      // If user role was changed, redirect if on forbidden route
-                    }}
-                    className={cn(
-                      'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors',
-                      user.role === roleVal
-                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300 font-semibold'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-dark-surface'
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Shield className="w-3.5 h-3.5 text-slate-400" />
-                      {ROLE_LABELS[roleVal]}
-                    </span>
-                    {user.role === roleVal && (
-                      <Check className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-                    )}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Logout */}

@@ -9,11 +9,13 @@ lerna-debug.log*
 
 # Node dependencies
 node_modules/
+frontend/node_modules/
 client/node_modules/
 backend/node_modules/
 
 # Production builds
 dist/
+frontend/dist/
 client/dist/
 build/
 
@@ -25,6 +27,8 @@ build/
 .env.production.local
 backend/.env
 !backend/.env.example
+frontend/.env
+!frontend/.env.example
 
 # IDE & Editor files
 .vscode/

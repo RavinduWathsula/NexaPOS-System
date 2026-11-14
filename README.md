@@ -40,6 +40,36 @@ NexaPOS provides an end-to-end retail operations platform:
 
 ---
 
+## 📁 Project Architecture & File Division
+
+The system is cleanly decoupled into 3 specialized tiers:
+
+```
+NexaPOS/
+├── backend/                  # Node.js + Express REST API & Prisma ORM
+│   ├── prisma/               # Prisma schema & seed scripts
+│   ├── src/                  # Controllers, services, routes, middleware
+│   ├── .env                  # Backend environment secrets & DB connection
+│   └── package.json
+│
+├── frontend/                 # React 18 + Vite + Tailwind CSS Single-Page Application
+│   ├── src/                  # Components, pages, stores, API clients
+│   ├── index.html            # Entry HTML
+│   ├── vite.config.js        # Vite configuration & proxy
+│   └── package.json
+│
+├── database/                 # Database dumps, DDL schemas & setup guides
+│   ├── nexapos_db.sql        # Full consolidated database dump (Schema + Seed data)
+│   ├── schema.sql            # Clean DDL table definitions, keys & indexes
+│   ├── seed.sql              # Initial system seed records
+│   └── README.md             # Import guides (CLI, phpMyAdmin, Workbench, Docker)
+│
+├── package.json              # Monorepo root workspace scripts
+└── README.md
+```
+
+---
+
 ## 📋 Prerequisites & Local Development
 
 ### Prerequisites
@@ -52,8 +82,8 @@ Clone the repository and install dependencies:
 # Install backend dependencies
 cd backend && npm install
 
-# Install client dependencies
-cd ../client && npm install
+# Install frontend dependencies
+cd ../frontend && npm install
 cd ..
 ```
 
@@ -73,13 +103,22 @@ STORE_NAME="NexaPOS Mobile & Electronics (Pvt) Ltd"
 STORE_BRANCH="Colombo Main Branch"
 ```
 
-Create `client/.env` based on `client/.env.example`:
+Create `frontend/.env` based on `frontend/.env.example`:
 ```env
 VITE_API_BASE_URL="http://localhost:5000/api"
 VITE_APP_TITLE="NexaPOS - Electronics & Mobile Retail POS"
 ```
 
-### 3. Database Migration & Seed
+### 3. Database Setup (Choose One Option)
+
+#### Option A: Direct SQL Import (Fastest & Universal)
+Import the generated `nexapos_db.sql` dump directly into your MySQL server:
+```bash
+mysql -u root -p < database/nexapos_db.sql
+```
+*(Or import `database/nexapos_db.sql` via phpMyAdmin at `http://localhost/phpmyadmin`)*.
+
+#### Option B: Prisma Push & Seed
 ```bash
 # Push schema to MySQL database
 npm run db:push
@@ -94,8 +133,8 @@ In separate terminals:
 # Terminal 1: Backend Server (http://localhost:5000)
 npm run server
 
-# Terminal 2: Frontend Client (http://localhost:5173)
-npm run client
+# Terminal 2: Frontend App (http://localhost:5173)
+npm run frontend
 ```
 
 ---
@@ -116,9 +155,9 @@ npm run client
 
 ### 1. Build Frontend
 ```bash
-npm run build --prefix client
+npm run build --prefix frontend
 ```
-This generates optimized, minified production assets in `client/dist`.
+This generates optimized, minified production assets in `frontend/dist`.
 
 ### 2. Process Management (PM2)
 NexaPOS includes an ecosystem file for PM2 (`backend/ecosystem.config.cjs`):
@@ -151,7 +190,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/pos.yourdomain.com/privkey.pem;
 
     # Frontend Static Files
-    root /var/www/nexapos/client/dist;
+    root /var/www/nexapos/frontend/dist;
     index index.html;
 
     location / {

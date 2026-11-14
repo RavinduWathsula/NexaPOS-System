@@ -41,8 +41,8 @@ export function AppRoutes() {
           {/* Universal Authorized Route */}
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Dashboard: Super Admin & Manager */}
-          <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'MANAGER']} />}>
+          {/* Universal Role-Specific Dashboard */}
+          <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_KEEPER']} />}>
             <Route path="/" element={<Dashboard />} />
           </Route>
 

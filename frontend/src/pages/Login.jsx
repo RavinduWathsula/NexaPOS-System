@@ -14,7 +14,7 @@ import {
   Moon,
   ChevronRight,
 } from 'lucide-react'
-import { useAuthStore, DEMO_USERS, ROLE_LABELS, ROLE_BADGE_COLORS } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { authAPI } from '@/services/api'
 import { Button } from '@/components/ui/Button'
@@ -24,12 +24,12 @@ import { cn } from '@/utils/cn'
 
 export function Login() {
   const navigate = useNavigate()
-  const { login, loginAsPreset, isLoading } = useAuthStore()
+  const { login, isLoading } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
 
   // Login form state
-  const [email, setEmail] = useState('admin@nexapos.lk')
-  const [password, setPassword] = useState('Password@123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState('')
@@ -62,20 +62,6 @@ export function Login() {
     } catch (err) {
       const msg = err.response?.data?.error?.message || 'Authentication failed. Please verify credentials.'
       setError(msg)
-    }
-  }
-
-  const handleSelectPreset = async (user) => {
-    setEmail(user.email)
-    setPassword('Password@123')
-    setError('')
-    try {
-      await login(user.email, 'Password@123')
-      navigate('/')
-    } catch (err) {
-      // Fallback preset
-      loginAsPreset(user)
-      navigate('/')
     }
   }
 
@@ -280,49 +266,6 @@ export function Login() {
               Sign In to NexaPOS
             </Button>
           </form>
-
-          {/* 1-Click Role Testing Presets (All 5 Roles) */}
-          <div className="pt-4 border-t border-slate-200 dark:border-dark-border space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                1-Click Role Presets (Testing)
-              </span>
-              <span className="text-[10px] text-brand-600 dark:text-brand-400 font-medium">
-                Live Backend JWT
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {DEMO_USERS.map((demo) => (
-                <button
-                  key={demo.id}
-                  type="button"
-                  onClick={() => handleSelectPreset(demo)}
-                  className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-card hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-dark-surface transition-all text-left group"
-                >
-                  <img
-                    src={demo.avatar}
-                    alt={demo.name}
-                    className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-dark-border"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">
-                      {demo.name}
-                    </p>
-                    <span
-                      className={cn(
-                        'inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border',
-                        ROLE_BADGE_COLORS[demo.role]
-                      )}
-                    >
-                      {ROLE_LABELS[demo.role]}
-                    </span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
