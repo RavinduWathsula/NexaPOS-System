@@ -8,6 +8,8 @@ import routes from './routes/index.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { errorResponse } from './utils/apiResponse.js'
 
+import { apiLimiter } from './middleware/rateLimiter.js'
+
 const app = express()
 
 // Security & Utility Middlewares
@@ -31,6 +33,9 @@ if (env.NODE_ENV !== 'test') {
 
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+
+// Apply General Rate Limiter to API
+app.use('/api', apiLimiter)
 
 // Mount Central REST API Router
 app.use('/api', routes)

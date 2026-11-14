@@ -177,6 +177,42 @@ export const repairsAPI = {
   myAssigned: (params) => api.get('/repairs/technician/assigned', { params }),
 }
 
+export const reportsAPI = {
+  salesAnalytics: (params) => api.get('/reports/sales-analytics', { params }),
+  profitAnalysis: (params) => api.get('/reports/profit-analysis', { params }),
+  inventoryReport: () => api.get('/reports/inventory'),
+  purchaseReport: (params) => api.get('/reports/purchases', { params }),
+}
+
+export const expensesAPI = {
+  list: (params) => api.get('/expenses', { params }),
+  create: (data) => api.post('/expenses', data),
+  update: (id, data) => api.put(`/expenses/${id}`, data),
+  delete: (id) => api.delete(`/expenses/${id}`),
+  categories: () => api.get('/expenses/categories'),
+}
+
+export const cashSessionsAPI = {
+  current: () => api.get('/cash-sessions/current'),
+  open: (data) => api.post('/cash-sessions/open', data),
+  close: (id, data) => api.post(`/cash-sessions/${id}/close`, data),
+  list: (params) => api.get('/cash-sessions', { params }),
+  get: (id) => api.get(`/cash-sessions/${id}`),
+}
+
+export const returnsAPI = {
+  lookup: (invoiceNumber) => api.get(`/returns/lookup/${invoiceNumber}`),
+  create: (data) => api.post('/returns', data),
+  approve: (id, data) => api.post(`/returns/${id}/approve`, data),
+  reject: (id, data) => api.post(`/returns/${id}/reject`, data),
+  list: (params) => api.get('/returns', { params }),
+  get: (id) => api.get(`/returns/${id}`),
+}
+
+export const auditAPI = {
+  list: (params) => api.get('/audit-logs', { params }),
+}
+
 export const healthAPI = {
   check: () => api.get('/health'),
 }

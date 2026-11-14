@@ -31,12 +31,14 @@ model User {
   updatedAt            DateTime  @updatedAt
 
   // Relations
-  sales        Sale[]
-  purchases    Purchase[]
-  repairJobs   RepairJob[]    @relation("TechnicianRepairs")
-  expenses     Expense[]
-  cashSessions CashSession[]
-  auditLogs    AuditLog[]
+  sales           Sale[]
+  purchases       Purchase[]
+  repairJobs      RepairJob[]    @relation("TechnicianRepairs")
+  expenses        Expense[]
+  cashSessions    CashSession[]
+  auditLogs       AuditLog[]
+  approvedReturns Return[]       @relation("ApprovedReturns")
+  createdReturns  Return[]       @relation("CreatedReturns")
 
   @@index([roleId])
   @@index([email])
@@ -525,36 +527,61 @@ model Payment {
 // 8. RETURNS & REFUNDS
 // ==========================================
 
-model Return {
-  id           String        @id @default(uuid())
-  returnNumber String        @unique
-  saleId       String
-  customerId   String?
-  totalRefund  Decimal       @db.Decimal(12, 2)
-  reason       String
-  refundMethod PaymentMethod @default(CASH)
-  createdAt    DateTime      @default(now())
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
 
-  sale         Sale          @relation(fields: [saleId], references: [id])
-  customer     Customer?     @relation(fields: [customerId], references: [id])
-  items        ReturnItem[]
+enum ReturnType {
+  REFUND
+  EXCHANGE
+}
+
+model Return {
+  id              String        @id @default(uuid())
+  returnNumber    String        @unique
+  saleId          String
+  customerId      String?
+  type            ReturnType    @default(REFUND)
+  status          ReturnStatus  @default(PENDING)
+  totalRefund     Decimal       @db.Decimal(12, 2)
+  reason          String
+  refundMethod    PaymentMethod @default(CASH)
+  approvedById    String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  inspectionNotes String?
+  createdById     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  sale            Sale          @relation(fields: [saleId], references: [id])
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  approvedBy      User?         @relation("ApprovedReturns", fields: [approvedById], references: [id])
+  createdBy       User?         @relation("CreatedReturns", fields: [createdById], references: [id])
+  items           ReturnItem[]
 
   @@index([saleId])
   @@index([customerId])
+  @@index([status])
 }
 
 model ReturnItem {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   returnId     String
   saleItemId   String
   deviceId     String?
   quantity     Int
-  refundAmount Decimal  @db.Decimal(12, 2)
-  condition    String?  // RESELLABLE, DEFECTIVE
+  refundAmount Decimal   @db.Decimal(12, 2)
+  condition    String?   // RESELLABLE, DEFECTIVE, DAMAGED
+  isRestocked  Boolean   @default(false)
+  restockedAt  DateTime?
 
-  return       Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  saleItem     SaleItem @relation(fields: [saleItemId], references: [id])
-  device       Device?  @relation(fields: [deviceId], references: [id])
+  return       Return    @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItem     SaleItem  @relation(fields: [saleItemId], references: [id])
+  device       Device?   @relation(fields: [deviceId], references: [id])
 
   @@index([returnId])
   @@index([saleItemId])

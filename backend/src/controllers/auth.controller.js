@@ -11,7 +11,7 @@ import { successResponse } from '../utils/apiResponse.js'
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body
-    const result = await loginUser(email, password)
+    const result = await loginUser(email, password, req.ip || req.connection?.remoteAddress)
 
     // Set secure HTTP-only cookies if configured
     res.cookie('refreshToken', result.refreshToken, {

@@ -25,6 +25,8 @@ import { RepairManagement } from '@/pages/modules/RepairManagement'
 import { Employees } from '@/pages/modules/Employees'
 import { ReportsAnalytics } from '@/pages/modules/ReportsAnalytics'
 import { ExpensesFinance } from '@/pages/modules/ExpensesFinance'
+import { ReturnsManagement } from '@/pages/modules/ReturnsManagement'
+import { AuditLogs } from '@/pages/modules/AuditLogs'
 import { Settings } from '@/pages/modules/Settings'
 
 export function AppRoutes() {
@@ -64,10 +66,11 @@ export function AppRoutes() {
             <Route path="/imei-devices" element={<IMEIDevices />} />
           </Route>
 
-          {/* Sales & Customers: Super Admin, Manager, Cashier */}
+          {/* Sales, Returns & Customers: Super Admin, Manager, Cashier */}
           <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'MANAGER', 'CASHIER']} />}>
             <Route path="/customers" element={<Customers />} />
             <Route path="/sales-invoices" element={<SalesInvoices />} />
+            <Route path="/returns" element={<ReturnsManagement />} />
           </Route>
 
           {/* Repairs & Warranty: Super Admin, Manager, Technician */}
@@ -76,10 +79,11 @@ export function AppRoutes() {
             <Route path="/repair-management" element={<RepairManagement />} />
           </Route>
 
-          {/* Reports & Financials: Super Admin, Manager */}
+          {/* Reports & Financials & Audit Logs: Super Admin, Manager */}
           <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'MANAGER']} />}>
             <Route path="/reports-analytics" element={<ReportsAnalytics />} />
             <Route path="/expenses-finance" element={<ExpensesFinance />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
           </Route>
 
           {/* Administration & System Configuration: Super Admin Only */}

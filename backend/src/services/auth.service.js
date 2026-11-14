@@ -3,8 +3,9 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { prisma } from '../config/prisma.js'
 import { env } from '../config/env.js'
+import { logAudit } from './audit.service.js'
 
-export async function loginUser(email, password) {
+export async function loginUser(email, password, ipAddress) {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     include: {
@@ -21,12 +22,25 @@ export async function loginUser(email, password) {
   })
 
   if (!user) {
+    await logAudit({
+      action: 'LOGIN_FAILED',
+      entity: 'User',
+      details: { email, reason: 'Account not found' },
+      ipAddress,
+    })
     const error = new Error('Invalid email or password credentials.')
     error.statusCode = 401
     throw error
   }
 
   if (!user.isActive) {
+    await logAudit({
+      action: 'LOGIN_FAILED',
+      entity: 'User',
+      entityId: user.id,
+      details: { email, reason: 'Account disabled' },
+      ipAddress,
+    })
     const error = new Error('This user account has been disabled. Please contact the administrator.')
     error.statusCode = 403
     throw error
@@ -34,6 +48,13 @@ export async function loginUser(email, password) {
 
   const isPasswordValid = await bcrypt.compare(password, user.password)
   if (!isPasswordValid) {
+    await logAudit({
+      action: 'LOGIN_FAILED',
+      entity: 'User',
+      entityId: user.id,
+      details: { email, reason: 'Incorrect password' },
+      ipAddress,
+    })
     const error = new Error('Invalid email or password credentials.')
     error.statusCode = 401
     throw error
@@ -43,6 +64,15 @@ export async function loginUser(email, password) {
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
+  })
+
+  await logAudit({
+    action: 'LOGIN_SUCCESS',
+    entity: 'User',
+    entityId: user.id,
+    performedById: user.id,
+    details: { email: user.email, role: user.role.name },
+    ipAddress,
   })
 
   // Sign JWT Access Token

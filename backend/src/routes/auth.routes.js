@@ -17,13 +17,14 @@ import {
   resetPasswordSchema,
 } from '../validators/auth.validator.js'
 import { authenticateJWT } from '../middleware/auth.js'
+import { authLimiter } from '../middleware/rateLimiter.js'
 
 const router = Router()
 
 // Public Auth Endpoints
-router.post('/login', validateRequest({ body: loginSchema }), login)
+router.post('/login', authLimiter, validateRequest({ body: loginSchema }), login)
 router.post('/refresh', validateRequest({ body: refreshTokenSchema }), refresh)
-router.post('/forgot-password', validateRequest({ body: forgotPasswordSchema }), forgotPassword)
+router.post('/forgot-password', authLimiter, validateRequest({ body: forgotPasswordSchema }), forgotPassword)
 router.post('/reset-password', validateRequest({ body: resetPasswordSchema }), resetPassword)
 
 // Protected Auth Endpoints
