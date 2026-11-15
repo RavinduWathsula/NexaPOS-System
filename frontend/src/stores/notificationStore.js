@@ -1,57 +1,77 @@
 import { create } from 'zustand'
+import { notificationsAPI } from '@/services/api'
 
-export const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'notif_1',
-    title: 'Low Stock Alert',
-    message: 'Apple iPhone 15 Pro (256GB - Blue Titanium) is down to 2 units.',
-    type: 'warning', // 'warning', 'info', 'danger', 'success'
-    timestamp: '10 minutes ago',
-    read: false,
-    category: 'inventory',
-  },
-  {
-    id: 'notif_2',
-    title: 'Urgent Device Repair Ready',
-    message: 'Repair #REP-2024-089 (Samsung S23 Ultra display change) is completed and ready for pickup.',
-    type: 'success',
-    timestamp: '35 minutes ago',
-    read: false,
-    category: 'repairs',
-  },
-  {
-    id: 'notif_3',
-    title: 'Warranty Expiry Approaching',
-    message: 'Warranty for customer Kamal Perera (Sony WH-1000XM5) expires in 3 days.',
-    type: 'info',
-    timestamp: '2 hours ago',
-    read: false,
-    category: 'warranty',
-  },
-  {
-    id: 'notif_4',
-    title: 'Large Sale Completed',
-    message: 'Cashier Chamari completed Invoice #INV-10492 for Rs. 485,000.00 (Split: Cash + Card).',
-    type: 'success',
-    timestamp: '3 hours ago',
-    read: true,
-    category: 'sales',
-  },
-  {
-    id: 'notif_5',
-    title: 'Supplier Shipment Received',
-    message: 'Purchase Order #PO-8821 from Singer Sri Lanka PLC marked as received.',
-    type: 'info',
-    timestamp: '5 hours ago',
-    read: true,
-    category: 'purchases',
-  },
-]
+function formatRelativeTime(dateInput) {
+  if (!dateInput) return 'Recently'
+  const date = new Date(dateInput)
+  if (isNaN(date.getTime())) return 'Recently'
+  const now = new Date()
+  const diffSec = Math.floor((now - date) / 1000)
 
-export const useNotificationStore = create((set) => ({
-  notifications: INITIAL_NOTIFICATIONS,
-  
+  if (diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}h ago`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 7) return `${diffDay}d ago`
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+function getStoredSet(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function saveStoredSet(key, setObj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(setObj).slice(-100)))
+  } catch {
+    // ignore
+  }
+}
+
+export const useNotificationStore = create((set, get) => ({
+  notifications: [],
+  isLoading: false,
+  lastFetched: null,
+
+  fetchNotifications: async () => {
+    set({ isLoading: true })
+    try {
+      const res = await notificationsAPI.list()
+      const rawNotifications = res.data?.data || []
+      const readSet = getStoredSet('nexapos_read_notifications')
+      const clearedSet = getStoredSet('nexapos_cleared_notifications')
+
+      const formatted = rawNotifications
+        .filter((n) => !clearedSet.has(n.id))
+        .map((n) => ({
+          ...n,
+          timestamp: formatRelativeTime(n.timestamp),
+          read: readSet.has(n.id),
+        }))
+
+      set({
+        notifications: formatted,
+        isLoading: false,
+        lastFetched: Date.now(),
+      })
+    } catch (err) {
+      console.warn('Could not fetch real notifications:', err?.message)
+      set({ isLoading: false })
+    }
+  },
+
   markAsRead: (id) => {
+    const readSet = getStoredSet('nexapos_read_notifications')
+    readSet.add(id)
+    saveStoredSet('nexapos_read_notifications', readSet)
+
     set((state) => ({
       notifications: state.notifications.map((n) =>
         n.id === id ? { ...n, read: true } : n
@@ -60,22 +80,40 @@ export const useNotificationStore = create((set) => ({
   },
 
   markAllAsRead: () => {
+    const { notifications } = get()
+    const readSet = getStoredSet('nexapos_read_notifications')
+    notifications.forEach((n) => readSet.add(n.id))
+    saveStoredSet('nexapos_read_notifications', readSet)
+
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
     }))
   },
 
   clearNotification: (id) => {
+    const clearedSet = getStoredSet('nexapos_cleared_notifications')
+    clearedSet.add(id)
+    saveStoredSet('nexapos_cleared_notifications', clearedSet)
+
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     }))
+  },
+
+  clearAll: () => {
+    const { notifications } = get()
+    const clearedSet = getStoredSet('nexapos_cleared_notifications')
+    notifications.forEach((n) => clearedSet.add(n.id))
+    saveStoredSet('nexapos_cleared_notifications', clearedSet)
+
+    set({ notifications: [] })
   },
 
   addNotification: (notification) => {
     set((state) => ({
       notifications: [
         {
-          id: `notif_${Date.now()}`,
+          id: `live_${Date.now()}`,
           timestamp: 'Just now',
           read: false,
           ...notification,
@@ -85,4 +123,3 @@ export const useNotificationStore = create((set) => ({
     }))
   },
 }))
-

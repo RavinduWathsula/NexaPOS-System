@@ -19,6 +19,7 @@ import cashSessionRoutes from './cashSession.routes.js'
 import returnRoutes from './return.routes.js'
 import auditRoutes from './audit.routes.js'
 import settingRoutes from './setting.routes.js'
+import notificationRoutes from './notification.routes.js'
 
 const router = Router()
 
@@ -42,5 +43,6 @@ router.use('/cash-sessions', cashSessionRoutes)
 router.use('/returns', returnRoutes)
 router.use('/audit-logs', auditRoutes)
 router.use('/settings', settingRoutes)
+router.use('/notifications', notificationRoutes)
 
 export default router

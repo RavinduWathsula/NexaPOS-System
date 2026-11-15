@@ -221,6 +221,10 @@ export const settingsAPI = {
   update: (data) => api.put('/settings', data),
 }
 
+export const notificationsAPI = {
+  list: () => api.get('/notifications'),
+}
+
 export const healthAPI = {
   check: () => api.get('/health'),
 }
