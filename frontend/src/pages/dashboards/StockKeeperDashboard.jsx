@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Boxes,
@@ -7,91 +7,66 @@ import {
   Truck,
   AlertTriangle,
   ArrowRight,
-  TrendingUp,
-  FolderTree,
-  Tag,
-  ShieldCheck,
+  Inbox,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
-
-const warehouseStockAlerts = [
-  {
-    id: 'prod_ls_1',
-    sku: 'APL-IP15P-256-TI',
-    name: 'Apple iPhone 15 Pro (256GB Titanium)',
-    brand: 'Apple',
-    type: 'Serialized (IMEI)',
-    stock: 2,
-    safety: 5,
-    status: 'Critical',
-  },
-  {
-    id: 'prod_ls_2',
-    sku: 'SNY-WH1000XM5-BLK',
-    name: 'Sony WH-1000XM5 Noise Cancelling',
-    brand: 'Sony',
-    type: 'Serialized (IMEI)',
-    stock: 1,
-    safety: 3,
-    status: 'Critical',
-  },
-  {
-    id: 'prod_ls_3',
-    sku: 'SAM-EP-TA800-BLK',
-    name: 'Samsung 25W Fast Wall Charger',
-    brand: 'Samsung',
-    type: 'Quantity (Bulk)',
-    stock: 4,
-    safety: 15,
-    status: 'Low',
-  },
-  {
-    id: 'prod_ls_4',
-    sku: 'SPG-UH-IP15-CLR',
-    name: 'Spigen Ultra Hybrid Case iPhone 15',
-    brand: 'Spigen',
-    type: 'Quantity (Bulk)',
-    stock: 3,
-    safety: 10,
-    status: 'Low',
-  },
-]
-
-const recentMovements = [
-  {
-    id: 'MOV-10042',
-    date: '10:45 AM',
-    ref: 'PO-2024-008 (Singer Sri Lanka)',
-    product: 'Apple iPhone 15 (128GB Black)',
-    type: 'STOCK_IN (GRN)',
-    quantity: '+15 Units (15 IMEIs)',
-    by: 'Roshan (Stock Keeper)',
-  },
-  {
-    id: 'MOV-10041',
-    date: '09:20 AM',
-    ref: 'INV-2024-10492',
-    product: 'iPhone 15 Pro (Titanium)',
-    type: 'SALE_OUT',
-    quantity: '-1 Unit (IMEI: 354892019482910)',
-    by: 'POS Counter 01',
-  },
-  {
-    id: 'MOV-10040',
-    date: 'Yesterday',
-    ref: 'RMA-2024-003',
-    product: 'Anker PowerCore 20000mAh',
-    type: 'RETURN_IN',
-    quantity: '+1 Unit (Restocked)',
-    by: 'Roshan (Stock Keeper)',
-  },
-]
+import { inventoryAPI, purchasesAPI } from '@/services/api'
 
 export function StockKeeperDashboard({ user }) {
   const navigate = useNavigate()
+  const [stockAlerts, setStockAlerts] = useState([])
+  const [recentMovements, setRecentMovements] = useState([])
+  const [stats, setStats] = useState({
+    serializedDevices: 0,
+    bulkAccessories: 0,
+    lowStockCount: 0,
+    pendingPurchases: 0,
+  })
+
+  useEffect(() => {
+    fetchWarehouseData()
+  }, [])
+
+  const fetchWarehouseData = async () => {
+    try {
+      // 1. Fetch Inventory Dashboard metrics
+      const invRes = await inventoryAPI.dashboard().catch(() => null)
+      if (invRes?.data?.data) {
+        const d = invRes.data.data
+        setStats((prev) => ({
+          ...prev,
+          serializedDevices: d.totalSerializedDevices || 0,
+          bulkAccessories: d.totalQuantityProducts || 0,
+          lowStockCount: d.lowStockCount || d.lowStockProducts?.length || 0,
+        }))
+        if (Array.isArray(d.lowStockProducts)) {
+          setStockAlerts(d.lowStockProducts.slice(0, 5))
+        }
+      }
+
+      // 2. Fetch pending purchases
+      const poRes = await purchasesAPI.list({ status: 'PENDING' }).catch(() => null)
+      if (poRes?.data?.data?.purchases) {
+        setStats((prev) => ({
+          ...prev,
+          pendingPurchases: poRes.data.data.purchases.length,
+        }))
+      }
+
+      // 3. Fetch recent stock movements
+      const movRes = await inventoryAPI.movements({ limit: 5 }).catch(() => null)
+      if (movRes?.data?.data?.movements) {
+        setRecentMovements(movRes.data.data.movements)
+      } else if (Array.isArray(movRes?.data?.data)) {
+        setRecentMovements(movRes.data.data.slice(0, 5))
+      }
+    } catch (e) {
+      console.warn('Stock Keeper live sync note:', e.message)
+    }
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -110,7 +85,7 @@ export function StockKeeperDashboard({ user }) {
             Welcome, {user?.name || 'Stock Keeper'}
           </h1>
           <p className="text-xs text-cyan-200/80">
-            Serialized IMEI validation, goods received (GRN), safety stock thresholds, and warehouse dispatch.
+            Serialized IMEI verification, goods received (GRN), safety stock thresholds, and warehouse dispatch.
           </p>
         </div>
 
@@ -146,8 +121,10 @@ export function StockKeeperDashboard({ user }) {
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">860 Unique IMEIs</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Smartphones, tablets & laptops</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              {stats.serializedDevices} Unique IMEIs
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Smartphones, tablets & serialized units</p>
           </div>
         </Card>
 
@@ -159,8 +136,10 @@ export function StockKeeperDashboard({ user }) {
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">560 SKUs</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Cables, chargers, covers & glass</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              {stats.bulkAccessories} SKUs
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Quantity-tracked stock items</p>
           </div>
         </Card>
 
@@ -172,8 +151,10 @@ export function StockKeeperDashboard({ user }) {
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-rose-600 dark:text-rose-400">14 Items Low</h3>
-            <p className="text-[11px] text-slate-400 mt-1">4 critical below safety stock</p>
+            <h3 className="text-xl font-bold text-rose-600 dark:text-rose-400">
+              {stats.lowStockCount} Items Low
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Below safety threshold</p>
           </div>
         </Card>
 
@@ -185,8 +166,10 @@ export function StockKeeperDashboard({ user }) {
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-emerald-600 dark:text-emerald-400">2 Purchase Orders</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Awaiting batch IMEI intake</p>
+            <h3 className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+              {stats.pendingPurchases} Purchase Orders
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Awaiting batch intake</p>
           </div>
         </Card>
       </div>
@@ -264,39 +247,47 @@ export function StockKeeperDashboard({ user }) {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>SKU / Product</TableHead>
-                  <TableHead>Tracking</TableHead>
-                  <TableHead>Stock Level</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {warehouseStockAlerts.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="text-xs font-semibold text-slate-900 dark:text-white">{item.name}</div>
-                      <div className="text-[11px] font-mono text-slate-400">{item.sku}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" size="sm">{item.type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={item.status === 'Critical' ? 'danger' : 'warning'} size="sm">
-                        {item.stock} in stock (Min {item.safety})
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="xs" onClick={() => navigate('/purchases')}>
-                        Order
-                      </Button>
-                    </TableCell>
+            {stockAlerts.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU / Product</TableHead>
+                    <TableHead>Tracking</TableHead>
+                    <TableHead>Stock Level</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {stockAlerts.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white">{item.name}</div>
+                        <div className="text-[11px] font-mono text-slate-400">{item.sku || 'SKU'}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" size="sm">{item.trackingType || 'QUANTITY'}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="danger" size="sm">
+                          {item.currentStock || item.stock || 0} in stock
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="xs" onClick={() => navigate('/purchases')}>
+                          Order
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="py-12 px-4 text-center">
+                <Inbox className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No low stock warnings</p>
+                <p className="text-[11px] text-slate-400 mt-1">All inventory items are currently above safety thresholds.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -304,44 +295,58 @@ export function StockKeeperDashboard({ user }) {
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
               <CardTitle>Recent Stock Movements</CardTitle>
-              <CardDescription>Audited stock entries, dispatches and returns</CardDescription>
+              <CardDescription>Live audited stock entries, dispatches and returns</CardDescription>
             </div>
             <Button variant="ghost" size="xs" onClick={() => navigate('/inventory')}>
               Movement Log
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reference & Product</TableHead>
-                  <TableHead>Movement Type</TableHead>
-                  <TableHead className="text-right">Quantity / Unit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentMovements.map((mov) => (
-                  <TableRow key={mov.id}>
-                    <TableCell>
-                      <div className="text-xs font-semibold text-slate-900 dark:text-white">{mov.product}</div>
-                      <div className="text-[11px] text-slate-400">{mov.ref} • {mov.date}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={mov.type.includes('IN') ? 'success' : 'info'} size="sm">
-                        {mov.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                      {mov.quantity}
-                    </TableCell>
+            {recentMovements.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Reference & Product</TableHead>
+                    <TableHead>Movement Type</TableHead>
+                    <TableHead className="text-right">Quantity / Unit</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recentMovements.map((mov) => (
+                    <TableRow key={mov.id}>
+                      <TableCell>
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white">
+                          {mov.product?.name || mov.productName || 'Stock Item'}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {mov.referenceType || 'ADJUST'} • {new Date(mov.createdAt).toLocaleDateString()}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={mov.type?.includes('IN') ? 'success' : 'info'} size="sm">
+                          {mov.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {mov.quantity > 0 ? `+${mov.quantity}` : mov.quantity}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="py-12 px-4 text-center">
+                <Inbox className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No stock movements recorded</p>
+                <p className="text-[11px] text-slate-400 mt-1">Receive a purchase order to stock your warehouse.</p>
+                <Button variant="outline" size="xs" onClick={() => navigate('/purchases')} className="mt-3">
+                  Receive Purchase (GRN)
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
-

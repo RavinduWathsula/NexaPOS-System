@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Smartphone,
@@ -7,55 +7,60 @@ import {
   Users,
   CreditCard,
   Banknote,
-  Clock,
   ArrowRight,
-  ScanLine,
-  CheckCircle2,
-  DollarSign,
+  Inbox,
+  AlertCircle,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { formatLKR } from '@/utils/currency'
-
-const cashierRecentBills = [
-  {
-    id: 'INV-2024-10492',
-    customer: 'Kamal Jayawardena',
-    time: '12 mins ago',
-    items: 'iPhone 15 Pro (256GB Titanium)',
-    paymentMethod: 'Split (Cash + Card)',
-    amount: 435000,
-  },
-  {
-    id: 'INV-2024-10491',
-    customer: 'Nadeeka Senanayake',
-    time: '45 mins ago',
-    items: 'Samsung Galaxy S24 Ultra',
-    paymentMethod: 'Credit Card',
-    amount: 465000,
-  },
-  {
-    id: 'INV-2024-10490',
-    customer: 'Dilan Ranasinghe',
-    time: '1 hour ago',
-    items: 'Apple AirPods Pro Gen 2',
-    paymentMethod: 'Cash',
-    amount: 88500,
-  },
-  {
-    id: 'INV-2024-10489',
-    customer: 'Sanjaya Rathnayake',
-    time: '2 hours ago',
-    items: 'Anker PowerCore 20000mAh',
-    paymentMethod: 'Bank Transfer',
-    amount: 24500,
-  },
-]
+import { cashSessionsAPI, posAPI } from '@/services/api'
 
 export function CashierDashboard({ user }) {
   const navigate = useNavigate()
+  const [currentSession, setCurrentSession] = useState(null)
+  const [recentBills, setRecentBills] = useState([])
+  const [stats, setStats] = useState({
+    cashInDrawer: 0,
+    cardTransfers: 0,
+    billsCount: 0,
+    returnsCount: 0,
+  })
+
+  useEffect(() => {
+    fetchCashierData()
+  }, [])
+
+  const fetchCashierData = async () => {
+    try {
+      // 1. Fetch current cash session
+      const sessionRes = await cashSessionsAPI.current().catch(() => null)
+      if (sessionRes?.data?.data) {
+        setCurrentSession(sessionRes.data.data)
+        setStats((prev) => ({
+          ...prev,
+          cashInDrawer: sessionRes.data.data.expectedBalance || sessionRes.data.data.openingBalance || 0,
+        }))
+      }
+
+      // 2. Fetch my recent sales
+      const salesRes = await posAPI.sales({ limit: 5 }).catch(() => null)
+      if (salesRes?.data?.data?.sales) {
+        const sales = salesRes.data.data.sales
+        setRecentBills(sales)
+        const totalAmount = sales.reduce((sum, s) => sum + (Number(s.finalAmount) || 0), 0)
+        setStats((prev) => ({
+          ...prev,
+          billsCount: sales.length,
+          cardTransfers: totalAmount,
+        }))
+      }
+    } catch (e) {
+      console.warn('Cashier live sync note:', e.message)
+    }
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -66,15 +71,17 @@ export function CashierDashboard({ user }) {
             <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               Cashier Billing Counter 01
             </span>
-            <Badge variant="success" size="sm">
-              Shift Active / Open
+            <Badge variant={currentSession ? 'success' : 'warning'} size="sm">
+              {currentSession ? 'Shift Active / Open' : 'Ready for Shift'}
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Welcome, {user?.name || 'Cashier'}
           </h1>
           <p className="text-xs text-emerald-200/80">
-            Current drawer session opened at 08:30 AM. Ready to scan barcodes and process retail sales.
+            {currentSession
+              ? `Current drawer session active. Ready to scan barcodes and process retail sales.`
+              : `Ready to start billing. Open drawer float or launch POS Terminal directly.`}
           </p>
         </div>
 
@@ -102,50 +109,56 @@ export function CashierDashboard({ user }) {
           </div>
           <div className="mt-2">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-              {formatLKR(138500, false)}
+              {formatLKR(stats.cashInDrawer, false)}
             </h3>
-            <p className="text-[11px] text-slate-400 mt-1">Includes Rs. 50,000 opening float</p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {currentSession ? 'Opening float + cash sales' : 'No drawer session active'}
+            </p>
           </div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-brand-600">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Card & Bank Transfers</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Card & Digital Sales</p>
             <div className="p-2 rounded-lg bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400">
               <CreditCard className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-              {formatLKR(874500, false)}
+              {formatLKR(stats.cardTransfers, false)}
             </h3>
-            <p className="text-[11px] text-slate-400 mt-1">Settled to merchant bank terminal</p>
+            <p className="text-[11px] text-slate-400 mt-1">Bank card & digital transfers</p>
           </div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-purple-600">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">My Bills Processed</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bills Processed</p>
             <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">28 Receipts</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Average checkout speed: 1.8 mins</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              {stats.billsCount} Receipts
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Issued today</p>
           </div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-amber-600">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Returns Handled</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Returns Processed</p>
             <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
               <RotateCcw className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">1 Return (RMA)</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Rs. 24,500 exchange processed</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              {stats.returnsCount} Returns
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Customer RMA items</p>
           </div>
         </Card>
       </div>
@@ -165,7 +178,7 @@ export function CashierDashboard({ user }) {
               <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600">
                 POS Billing Terminal
               </p>
-              <p className="text-xs text-slate-400">Create new invoice & scan items</p>
+              <p className="text-xs text-slate-400">Create new sale & scan items</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
@@ -222,41 +235,51 @@ export function CashierDashboard({ user }) {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Purchased Item</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead className="text-right">Amount (LKR)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {cashierRecentBills.map((bill) => (
-                <TableRow key={bill.id}>
-                  <TableCell className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {bill.id}
-                  </TableCell>
-                  <TableCell className="text-xs font-semibold text-slate-900 dark:text-white">
-                    {bill.customer}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-500 truncate max-w-xs">
-                    {bill.items}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" size="sm">{bill.paymentMethod}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-xs">
-                    {formatLKR(bill.amount)}
-                  </TableCell>
+          {recentBills.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Purchased Item</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead className="text-right">Amount (LKR)</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentBills.map((bill) => (
+                  <TableRow key={bill.id}>
+                    <TableCell className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      {bill.invoiceNumber || bill.id}
+                    </TableCell>
+                    <TableCell className="text-xs font-semibold text-slate-900 dark:text-white">
+                      {bill.customer?.name || 'Walk-in Customer'}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-500 truncate max-w-xs">
+                      {bill.items?.map((i) => i.productName || i.product?.name).join(', ') || 'Sale Item'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" size="sm">{bill.paymentMethod || 'CASH'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-xs">
+                      {formatLKR(bill.finalAmount || bill.grandTotal || 0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="py-12 px-4 text-center">
+              <Inbox className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No receipts issued today</p>
+              <p className="text-[11px] text-slate-400 mt-1">Click the button below to start billing customers.</p>
+              <Button variant="outline" size="xs" onClick={() => navigate('/pos')} className="mt-3">
+                Launch POS Terminal
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   )
 }
-
