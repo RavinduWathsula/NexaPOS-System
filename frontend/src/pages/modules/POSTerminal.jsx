@@ -1015,13 +1015,13 @@ export function POSTerminal() {
         </form>
       </Modal>
 
-      {/* MODAL 3: THERMAL RECEIPT DISPLAY */}
+      {/* MODAL 3: INVOICE & RECEIPT DISPLAY */}
       <Modal
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
         title="Transaction Completed"
         description={`Invoice #${completedSale?.invoiceNumber || ''}`}
-        maxWidth="md"
+        maxWidth="4xl"
       >
         <ThermalReceipt sale={completedSale} onClose={() => setIsReceiptOpen(false)} />
       </Modal>

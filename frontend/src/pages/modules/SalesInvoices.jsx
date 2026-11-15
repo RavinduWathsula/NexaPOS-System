@@ -364,13 +364,13 @@ export function SalesInvoices() {
         </CardContent>
       </Card>
 
-      {/* MODAL: Thermal Receipt Reprint Dialog */}
+      {/* MODAL: Invoice & Sales Receipt Dialog */}
       <Modal
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
-        title="Reprint POS Sales Receipt"
+        title="Official Sales Invoice & Warranty Certificate"
         description={`Invoice #${activeReceiptSale?.invoiceNumber || ''}`}
-        maxWidth="md"
+        maxWidth="4xl"
       >
         {receiptLoading ? (
           <div className="space-y-4 py-8">

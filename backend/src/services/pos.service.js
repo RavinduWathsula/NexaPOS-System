@@ -428,7 +428,16 @@ export async function processSale(data, cashierId) {
         cashier: { select: { id: true, name: true, email: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true, isSerialized: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                isSerialized: true,
+                category: { select: { name: true } },
+                brand: { select: { name: true } },
+              },
+            },
             devices: {
               include: {
                 device: {
@@ -458,7 +467,16 @@ export async function getSaleReceipt(idOrInvoice) {
       cashier: { select: { id: true, name: true, email: true } },
       items: {
         include: {
-          product: { select: { id: true, name: true, sku: true, isSerialized: true } },
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              isSerialized: true,
+              category: { select: { name: true } },
+              brand: { select: { name: true } },
+            },
+          },
           devices: {
             include: {
               device: {
