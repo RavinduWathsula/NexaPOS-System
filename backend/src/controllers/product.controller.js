@@ -41,7 +41,7 @@ export async function createNewProduct(req, res, next) {
 
 export async function updateExistingProduct(req, res, next) {
   try {
-    const product = await updateProduct(req.params.id, req.body)
+    const product = await updateProduct(req.params.id, req.body, req.user?.id)
     return successResponse(res, product, 'Product updated successfully.')
   } catch (error) {
     next(error)

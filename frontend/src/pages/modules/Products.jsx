@@ -31,7 +31,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { productsAPI, categoriesAPI, brandsAPI } from '@/services/api'
+import { productsAPI, categoriesAPI, brandsAPI, inventoryAPI, devicesAPI } from '@/services/api'
 import { formatLKR } from '@/utils/currency'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -52,12 +52,30 @@ export function Products() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [serializedFilter, setSerializedFilter] = useState('')
+  const [stockStatusFilter, setStockStatusFilter] = useState('')
 
   // Add / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [modalError, setModalError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Quick Restock Modal State
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
+  const [restockProduct, setRestockProduct] = useState(null)
+  const [restockMode, setRestockMode] = useState('ADD') // 'ADD' or 'SET'
+  const [restockQuantity, setRestockQuantity] = useState('10')
+  const [restockReason, setRestockReason] = useState('Stock replenishment')
+  const [restockNotes, setRestockNotes] = useState('')
+  const [restockUnitCost, setRestockUnitCost] = useState('')
+  const [isRestocking, setIsRestocking] = useState(false)
+  const [restockError, setRestockError] = useState('')
+
+  // Serialized quick restock device fields
+  const [quickImei1, setQuickImei1] = useState('')
+  const [quickImei2, setQuickImei2] = useState('')
+  const [quickColor, setQuickColor] = useState('')
+  const [quickStorage, setQuickStorage] = useState('')
 
   // Details Modal State
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
@@ -83,6 +101,15 @@ export function Products() {
   const [newImageUrl, setNewImageUrl] = useState('')
   const [imageSubmitting, setImageSubmitting] = useState(false)
 
+  // Quick Create Category & Brand State inside Modal
+  const [showQuickCategory, setShowQuickCategory] = useState(false)
+  const [quickCategoryName, setQuickCategoryName] = useState('')
+  const [quickCategoryLoading, setQuickCategoryLoading] = useState(false)
+
+  const [showQuickBrand, setShowQuickBrand] = useState(false)
+  const [quickBrandName, setQuickBrandName] = useState('')
+  const [quickBrandLoading, setQuickBrandLoading] = useState(false)
+
   // Form Fields for Add / Edit
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
@@ -97,7 +124,7 @@ export function Products() {
   const [defaultWarrantyMonths, setDefaultWarrantyMonths] = useState('12')
   const [initialStock, setInitialStock] = useState('0')
   const [reorderLevel, setReorderLevel] = useState('5')
-  const [location, setLocation] = useState('Main Store')
+  const [location, setLocation] = useState('Store Floor')
   const [imageUrl, setImageUrl] = useState('')
 
   const fetchAuxiliary = async () => {
@@ -106,10 +133,52 @@ export function Products() {
         categoriesAPI.list(),
         brandsAPI.list(),
       ])
-      setCategories(catsRes.data?.data || [])
-      setBrands(brandsRes.data?.data || [])
+      const cats = catsRes.data?.data || []
+      const brs = brandsRes.data?.data || []
+      setCategories(cats)
+      setBrands(brs)
+      return { categories: cats, brands: brs }
     } catch (e) {
       console.error('Error fetching categories/brands:', e)
+      return { categories: [], brands: [] }
+    }
+  }
+
+  const handleQuickCreateCategory = async () => {
+    if (!quickCategoryName.trim()) return
+    setQuickCategoryLoading(true)
+    try {
+      const res = await categoriesAPI.create({ name: quickCategoryName.trim() })
+      const newCat = res.data?.data
+      if (newCat) {
+        setCategories((prev) => [...prev, newCat])
+        setCategoryId(newCat.id)
+        setQuickCategoryName('')
+        setShowQuickCategory(false)
+      }
+    } catch (err) {
+      setModalError(err.response?.data?.error?.message || 'Failed to create category.')
+    } finally {
+      setQuickCategoryLoading(false)
+    }
+  }
+
+  const handleQuickCreateBrand = async () => {
+    if (!quickBrandName.trim()) return
+    setQuickBrandLoading(true)
+    try {
+      const res = await brandsAPI.create({ name: quickBrandName.trim() })
+      const newBrand = res.data?.data
+      if (newBrand) {
+        setBrands((prev) => [...prev, newBrand])
+        setBrandId(newBrand.id)
+        setQuickBrandName('')
+        setShowQuickBrand(false)
+      }
+    } catch (err) {
+      setModalError(err.response?.data?.error?.message || 'Failed to create brand.')
+    } finally {
+      setQuickBrandLoading(false)
     }
   }
 
@@ -144,14 +213,12 @@ export function Products() {
     fetchProducts(1)
   }
 
-  const handleOpenAdd = () => {
+  const handleOpenAdd = async () => {
     setEditingProduct(null)
     setName('')
     setSku('')
     setBarcode('')
     setDescription('')
-    setCategoryId(categories[0]?.id || '')
-    setBrandId(brands[0]?.id || '')
     setIsSerialized(false)
     setCostPrice('')
     setRetailPrice('')
@@ -162,25 +229,125 @@ export function Products() {
     setLocation('Store Floor')
     setImageUrl('')
     setModalError('')
+    setShowQuickCategory(false)
+    setShowQuickBrand(false)
     setIsModalOpen(true)
+
+    // Freshly fetch categories & brands every time modal opens
+    const aux = await fetchAuxiliary()
+    if (aux.categories?.length > 0) {
+      setCategoryId(aux.categories[0].id)
+    } else {
+      setCategoryId('')
+    }
+    if (aux.brands?.length > 0) {
+      setBrandId(aux.brands[0].id)
+    } else {
+      setBrandId('')
+    }
   }
 
-  const handleOpenEdit = (prod) => {
+  const getProductThreshold = (p) => Number(p?.inventory?.[0]?.reorderLevel ?? 5)
+  const getProductStock = (p) => Number(p?.stockCount ?? p?.inventory?.[0]?.quantity ?? 0)
+
+  const handleOpenEdit = async (prod) => {
     setEditingProduct(prod)
     setName(prod.name)
     setSku(prod.sku)
     setBarcode(prod.barcode || '')
     setDescription(prod.description || '')
-    setCategoryId(prod.categoryId)
+    setCategoryId(prod.categoryId || '')
     setBrandId(prod.brandId || '')
-    setIsSerialized(prod.isSerialized)
+    setIsSerialized(Boolean(prod.isSerialized))
     setCostPrice(String(prod.costPrice))
     setRetailPrice(String(prod.retailPrice))
     setMinPrice(prod.minPrice ? String(prod.minPrice) : '')
     setDefaultWarrantyMonths(String(prod.defaultWarrantyMonths || 0))
     setImageUrl(prod.images?.[0]?.url || '')
+
+    // Current stock & threshold setup
+    const curQty = getProductStock(prod)
+    const curThreshold = getProductThreshold(prod)
+    const curLocation = prod.inventory?.[0]?.location || 'Store Floor'
+
+    setInitialStock(String(curQty))
+    setReorderLevel(String(curThreshold))
+    setLocation(curLocation)
+
     setModalError('')
+    setShowQuickCategory(false)
+    setShowQuickBrand(false)
     setIsModalOpen(true)
+
+    await fetchAuxiliary()
+  }
+
+  const handleOpenRestock = (prod) => {
+    setRestockProduct(prod)
+    setRestockQuantity('10')
+    setRestockMode('ADD')
+    setRestockReason('Stock replenishment')
+    setRestockNotes('')
+    setRestockUnitCost(String(prod.costPrice || ''))
+    setQuickImei1('')
+    setQuickImei2('')
+    setQuickColor(prod.variants?.[0]?.color || '')
+    setQuickStorage(prod.variants?.[0]?.storage || '')
+    setRestockError('')
+    setIsRestockModalOpen(true)
+  }
+
+  const handleConfirmRestock = async (e) => {
+    e.preventDefault()
+    if (!restockProduct) return
+    setIsRestocking(true)
+    setRestockError('')
+
+    try {
+      if (restockProduct.isSerialized) {
+        if (!quickImei1.trim()) {
+          setRestockError('Primary IMEI (IMEI 1) is required to intake a serialized device.')
+          setIsRestocking(false)
+          return
+        }
+        await devicesAPI.register({
+          productId: restockProduct.id,
+          imei1: quickImei1.trim(),
+          imei2: quickImei2.trim() || undefined,
+          purchaseCost: Number(restockUnitCost) || restockProduct.costPrice,
+          sellingPrice: restockProduct.retailPrice,
+          color: quickColor.trim() || undefined,
+          storage: quickStorage.trim() || undefined,
+          notes: restockNotes.trim() || undefined,
+        })
+        setSuccessMsg(`Device IMEI ${quickImei1.trim()} registered. Stock updated for "${restockProduct.name}".`)
+      } else {
+        const qty = Number(restockQuantity)
+        if (isNaN(qty) || qty <= 0) {
+          setRestockError('Please enter a valid numeric quantity greater than 0.')
+          setIsRestocking(false)
+          return
+        }
+        await inventoryAPI.adjust({
+          productId: restockProduct.id,
+          type: restockMode,
+          quantity: qty,
+          reason: restockReason || 'Stock replenishment',
+          notes: restockNotes.trim() || undefined,
+        })
+        const curStock = getProductStock(restockProduct)
+        const finalStock = restockMode === 'ADD' ? curStock + qty : qty
+        setSuccessMsg(`Restocked "${restockProduct.name}" successfully (New Stock: ${finalStock} units).`)
+      }
+
+      setIsRestockModalOpen(false)
+      fetchProducts(pagination.page)
+      setTimeout(() => setSuccessMsg(''), 4000)
+    } catch (err) {
+      setRestockError(err.response?.data?.error?.message || 'Failed to complete restock operation.')
+    } finally {
+      setIsRestocking(false)
+    }
   }
 
   const handleOpenDetails = async (prod) => {
@@ -228,9 +395,10 @@ export function Products() {
         retailPrice: Number(retailPrice),
         minPrice: minPrice ? Number(minPrice) : undefined,
         defaultWarrantyMonths: Number(defaultWarrantyMonths),
-        initialStock: Number(initialStock),
-        reorderLevel: Number(reorderLevel),
-        location,
+        initialStock: Number(initialStock || 0),
+        quantity: Number(initialStock || 0),
+        reorderLevel: Number(reorderLevel || 5),
+        location: location || 'Store Floor',
         imageUrl: imageUrl.trim() || undefined,
       }
 
@@ -358,8 +526,23 @@ export function Products() {
   // Summary Metrics calculations
   const totalProducts = pagination.total
   const serializedCount = products.filter((p) => p.isSerialized).length
-  const quantityCount = products.filter((p) => !p.isSerialized).length
-  const lowStockCount = products.filter((p) => (p.stockCount || 0) <= 2).length
+  const outOfStockCount = products.filter((p) => getProductStock(p) === 0).length
+  const lowStockCount = products.filter((p) => {
+    const s = getProductStock(p)
+    const t = getProductThreshold(p)
+    return s > 0 && s <= t
+  }).length
+
+  // Filtered displayed products
+  const displayedProducts = products.filter((p) => {
+    if (!stockStatusFilter) return true
+    const s = getProductStock(p)
+    const t = getProductThreshold(p)
+    if (stockStatusFilter === 'OUT_OF_STOCK') return s === 0
+    if (stockStatusFilter === 'LOW_STOCK') return s > 0 && s <= t
+    if (stockStatusFilter === 'IN_STOCK') return s > t
+    return true
+  })
 
   return (
     <div className="space-y-6 pb-12">
@@ -421,25 +604,64 @@ export function Products() {
 
       {/* Summary Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card hover className="p-4 border-l-4 border-l-brand-500">
-          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Catalog SKUs</p>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">{totalProducts}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Active retail items</p>
+        <Card
+          hover
+          className={`p-4 border-l-4 border-l-brand-500 cursor-pointer transition-all ${
+            stockStatusFilter === '' ? 'ring-1 ring-brand-500 shadow-sm' : ''
+          }`}
+          onClick={() => setStockStatusFilter('')}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Catalog SKUs</p>
+            <Package className="w-4 h-4 text-brand-500" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{totalProducts}</h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">Click to view all products</p>
         </Card>
-        <Card hover className="p-4 border-l-4 border-l-purpleAccent-500">
-          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Serialized Devices</p>
-          <h3 className="text-lg font-bold text-purpleAccent-600 dark:text-purpleAccent-400 mt-1">{serializedCount}</h3>
+
+        <Card
+          hover
+          className={`p-4 border-l-4 border-l-purpleAccent-500 cursor-pointer transition-all ${
+            serializedFilter === 'true' ? 'ring-1 ring-purpleAccent-500 shadow-sm' : ''
+          }`}
+          onClick={() => setSerializedFilter(serializedFilter === 'true' ? '' : 'true')}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Serialized Devices</p>
+            <ScanLine className="w-4 h-4 text-purpleAccent-500" />
+          </div>
+          <h3 className="text-xl font-bold text-purpleAccent-600 dark:text-purpleAccent-400 mt-1">{serializedCount}</h3>
           <p className="text-[11px] text-slate-400 mt-0.5">Strict IMEI tracking</p>
         </Card>
-        <Card hover className="p-4 border-l-4 border-l-sky-500">
-          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Accessories</p>
-          <h3 className="text-lg font-bold text-sky-600 dark:text-sky-400 mt-1">{quantityCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Bulk quantity inventory</p>
+
+        <Card
+          hover
+          className={`p-4 border-l-4 border-l-amber-500 cursor-pointer transition-all ${
+            stockStatusFilter === 'LOW_STOCK' ? 'ring-1 ring-amber-500 shadow-sm bg-amber-50/20 dark:bg-amber-950/20' : ''
+          }`}
+          onClick={() => setStockStatusFilter(stockStatusFilter === 'LOW_STOCK' ? '' : 'LOW_STOCK')}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">Low Stock Notice</p>
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          </div>
+          <h3 className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">{lowStockCount}</h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">At or below reorder limit (Filter)</p>
         </Card>
-        <Card hover className="p-4 border-l-4 border-l-rose-500">
-          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Low Stock Notice</p>
-          <h3 className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-1">{lowStockCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Below reorder limit</p>
+
+        <Card
+          hover
+          className={`p-4 border-l-4 border-l-rose-500 cursor-pointer transition-all ${
+            stockStatusFilter === 'OUT_OF_STOCK' ? 'ring-1 ring-rose-500 shadow-sm bg-rose-50/20 dark:bg-rose-950/20' : ''
+          }`}
+          onClick={() => setStockStatusFilter(stockStatusFilter === 'OUT_OF_STOCK' ? '' : 'OUT_OF_STOCK')}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase text-rose-700 dark:text-rose-400">Out of Stock</p>
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+          </div>
+          <h3 className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">{outOfStockCount}</h3>
+          <p className="text-[11px] text-rose-500/80 mt-0.5">0 units available (Filter & Restock)</p>
         </Card>
       </div>
 
@@ -495,6 +717,17 @@ export function Products() {
                 <option value="false">Quantity Accessories</option>
               </select>
 
+              <select
+                value={stockStatusFilter}
+                onChange={(e) => setStockStatusFilter(e.target.value)}
+                className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface text-slate-800 dark:text-slate-200 font-medium"
+              >
+                <option value="">All Stock Levels</option>
+                <option value="IN_STOCK">In Stock (Healthy)</option>
+                <option value="LOW_STOCK">Low Stock (≤ Limit)</option>
+                <option value="OUT_OF_STOCK">Out of Stock (0 Units)</option>
+              </select>
+
               <Button type="submit" variant="secondary" size="sm">
                 Filter
               </Button>
@@ -512,12 +745,16 @@ export function Products() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : products.length === 0 ? (
+          ) : displayedProducts.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 icon={Package}
                 title="No products found"
-                description="No products match your filter parameters."
+                description={
+                  stockStatusFilter
+                    ? `No products currently match "${stockStatusFilter.replace('_', ' ')}".`
+                    : "No products match your filter parameters."
+                }
                 actionLabel={canManage ? 'Register New Product' : undefined}
                 onAction={handleOpenAdd}
               />
@@ -531,13 +768,13 @@ export function Products() {
                   <TableHead>Tracking Type</TableHead>
                   <TableHead>Cost Price (LKR)</TableHead>
                   <TableHead>Retail Price (LKR)</TableHead>
-                  <TableHead>Available Stock</TableHead>
+                  <TableHead>Available Stock & Limit</TableHead>
                   <TableHead>Warranty</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((p) => (
+                {displayedProducts.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -596,17 +833,48 @@ export function Products() {
                       <span className="text-xs font-bold text-slate-900 dark:text-white">{formatLKR(p.retailPrice)}</span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-lg ${
-                            (p.stockCount || 0) <= 2
-                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
-                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          }`}
-                        >
-                          {p.stockCount || 0} {p.isSerialized ? 'Units' : 'in Stock'}
-                        </span>
-                      </div>
+                      {(() => {
+                        const stock = getProductStock(p)
+                        const limit = getProductThreshold(p)
+                        const isOut = stock === 0
+                        const isLow = stock > 0 && stock <= limit
+
+                        return (
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <div className="flex items-center gap-1.5">
+                              {isOut ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-2xs">
+                                  <AlertCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                                  0 • OUT OF STOCK
+                                </span>
+                              ) : isLow ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                  <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                  {stock} left • LOW (Limit {limit})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  {stock} {p.isSerialized ? 'Units' : 'in Stock'}
+                                </span>
+                              )}
+                            </div>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRestock(p)}
+                                className={`text-[11px] font-semibold flex items-center gap-1 transition-colors px-2 py-0.5 rounded-md border ${
+                                  isOut
+                                    ? 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100 dark:text-rose-300 dark:bg-rose-950/40 dark:border-rose-900'
+                                    : 'text-brand-600 bg-brand-50 border-brand-200 hover:bg-brand-100 dark:text-brand-400 dark:bg-brand-950/40 dark:border-brand-900'
+                                }`}
+                              >
+                                <Plus className="w-3 h-3" /> Restock
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-slate-500">
@@ -625,6 +893,14 @@ export function Products() {
                         </Button>
                         {canManage && (
                           <>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleOpenRestock(p)}
+                              title="Restock Product"
+                            >
+                              <Boxes className="w-3.5 h-3.5 text-brand-600 hover:text-brand-700" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -738,32 +1014,134 @@ export function Products() {
               placeholder="e.g. 195949019283"
             />
 
-            <Select
-              label="Category"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              required
-            >
-              <option value="">Select Category</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            {/* Category Selection with Quick Add */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Category *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCategory(!showQuickCategory)}
+                  className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Quick Add
+                </button>
+              </div>
 
-            <Select
-              label="Brand"
-              value={brandId}
-              onChange={(e) => setBrandId(e.target.value)}
-            >
-              <option value="">Select Brand (Optional)</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
+              {showQuickCategory && (
+                <div className="flex items-center gap-2 p-2 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 animate-in fade-in">
+                  <input
+                    type="text"
+                    value={quickCategoryName}
+                    onChange={(e) => setQuickCategoryName(e.target.value)}
+                    placeholder="New category name..."
+                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-card text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleQuickCreateCategory()
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="primary"
+                    onClick={handleQuickCreateCategory}
+                    isLoading={quickCategoryLoading}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setShowQuickCategory(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
+              >
+                <option value="">{categories.length === 0 ? 'No categories yet — click Quick Add' : 'Select Category'}</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Brand Selection with Quick Add */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Brand (Optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickBrand(!showQuickBrand)}
+                  className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Quick Add
+                </button>
+              </div>
+
+              {showQuickBrand && (
+                <div className="flex items-center gap-2 p-2 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 animate-in fade-in">
+                  <input
+                    type="text"
+                    value={quickBrandName}
+                    onChange={(e) => setQuickBrandName(e.target.value)}
+                    placeholder="New brand name..."
+                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-card text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleQuickCreateBrand()
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="primary"
+                    onClick={handleQuickCreateBrand}
+                    isLoading={quickBrandLoading}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setShowQuickBrand(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              <select
+                value={brandId}
+                onChange={(e) => setBrandId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
+              >
+                <option value="">{brands.length === 0 ? 'No brands yet — click Quick Add' : 'Select Brand (Optional)'}</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Image URL preview */}
@@ -812,15 +1190,15 @@ export function Products() {
             </label>
           </div>
 
-          {/* Financials & Stock Defaults */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Financials & Warranty */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <Input
               label="Cost Price (LKR)"
               type="number"
               step="0.01"
               value={costPrice}
               onChange={(e) => setCostPrice(e.target.value)}
-              placeholder="e.g. 385000"
+              placeholder="e.g. 55000"
               required
             />
             <Input
@@ -829,7 +1207,7 @@ export function Products() {
               step="0.01"
               value={retailPrice}
               onChange={(e) => setRetailPrice(e.target.value)}
-              placeholder="e.g. 435000"
+              placeholder="e.g. 62000"
               required
             />
             <Input
@@ -838,11 +1216,8 @@ export function Products() {
               step="0.01"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              placeholder="e.g. 420000"
+              placeholder="e.g. 60000"
             />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Warranty (Months)"
               type="number"
@@ -850,29 +1225,155 @@ export function Products() {
               onChange={(e) => setDefaultWarrantyMonths(e.target.value)}
               placeholder="12"
             />
-            {!editingProduct && !isSerialized ? (
-              <Input
-                label="Initial Quantity"
-                type="number"
-                value={initialStock}
-                onChange={(e) => setInitialStock(e.target.value)}
-                placeholder="0"
-              />
+          </div>
+
+          {/* Stock & Inventory Thresholds Configuration */}
+          <div className="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Stock Quantity & Alert Limits
+                </h4>
+              </div>
+
+              {/* Real-time stock status badge */}
+              {!isSerialized ? (
+                <div>
+                  {Number(initialStock || 0) === 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-2xs">
+                      <AlertCircle className="w-3 h-3 text-rose-600" /> 0 • OUT OF STOCK
+                    </span>
+                  ) : Number(initialStock) <= Number(reorderLevel || 5) ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                      <AlertCircle className="w-3 h-3 text-amber-600" /> LOW STOCK ({initialStock} left • Limit: {reorderLevel})
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> IN STOCK ({initialStock} Units)
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <Badge variant="purple" size="sm">
+                  IMEI Serialized ({editingProduct ? (editingProduct.stockCount || 0) : 0} In-Stock Devices)
+                </Badge>
+              )}
+            </div>
+
+            {!isSerialized ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                      {editingProduct ? 'Current Stock Quantity' : 'Initial Quantity'}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={initialStock}
+                      onChange={(e) => setInitialStock(e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                      Reorder Threshold (Alert Limit)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={reorderLevel}
+                      onChange={(e) => setReorderLevel(e.target.value)}
+                      placeholder="5"
+                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">Triggers "LOW STOCK" when ≤ this limit.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                      Storage Bin / Location
+                    </label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="e.g. Store Floor, Rack A2"
+                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Add / Restock buttons right inside modal */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1">
+                    Quick Restock (+Units):
+                  </span>
+                  {[5, 10, 25, 50, 100].map((delta) => (
+                    <button
+                      key={delta}
+                      type="button"
+                      onClick={() => setInitialStock(String(Math.max(0, (Number(initialStock) || 0) + delta)))}
+                      className="px-2.5 py-0.5 text-xs font-bold rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-dark-card text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950 transition-colors shadow-2xs"
+                    >
+                      +{delta}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setInitialStock('0')}
+                    className="px-2.5 py-0.5 text-xs font-medium rounded-lg border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-dark-card text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
+                  >
+                    Set to 0 (Out of Stock)
+                  </button>
+                </div>
+              </div>
             ) : (
-              <Input
-                label="Reorder Threshold"
-                type="number"
-                value={reorderLevel}
-                onChange={(e) => setReorderLevel(e.target.value)}
-                placeholder="5"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    Reorder Threshold (Alert Limit)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={reorderLevel}
+                    onChange={(e) => setReorderLevel(e.target.value)}
+                    placeholder="5"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Triggers low stock alert when devices count is ≤ this.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    Storage Bin / Location
+                  </label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Vault, Display 1"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-300 flex items-center justify-between">
+                  <span>
+                    <strong>Serialized Inventory:</strong> Stock is calculated live from active IMEIs in the device registry.
+                  </span>
+                  <a
+                    href="/imei-devices"
+                    className="text-purple-700 dark:text-purple-300 font-bold underline hover:text-purple-900 ml-2"
+                  >
+                    Open IMEI Devices ➔
+                  </a>
+                </div>
+              </div>
             )}
-            <Input
-              label="Storage Bin / Location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Rack A2, Vault"
-            />
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-border">
@@ -894,6 +1395,208 @@ export function Products() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Quick Restock Inventory Modal */}
+      <Modal
+        isOpen={isRestockModalOpen}
+        onClose={() => setIsRestockModalOpen(false)}
+        title={`Restock Inventory — ${restockProduct?.name || ''}`}
+        description={`SKU: ${restockProduct?.sku || ''} • Current Stock: ${getProductStock(restockProduct)} • Alert Limit: ${getProductThreshold(restockProduct)}`}
+        maxWidth="lg"
+      >
+        {restockProduct && (
+          <form onSubmit={handleConfirmRestock} className="space-y-4">
+            {restockError && (
+              <div className="p-3 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-xs font-medium">
+                {restockError}
+              </div>
+            )}
+
+            {/* Current Status banner */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface/60 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current Available Stock</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+                  {getProductStock(restockProduct)} {restockProduct.isSerialized ? 'Units' : 'in Stock'}
+                </p>
+              </div>
+
+              <div>
+                {getProductStock(restockProduct) === 0 ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> OUT OF STOCK
+                  </span>
+                ) : getProductStock(restockProduct) <= getProductThreshold(restockProduct) ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> LOW STOCK (Limit {getProductThreshold(restockProduct)})
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> IN STOCK
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {!restockProduct.isSerialized ? (
+              <div className="space-y-4">
+                {/* Restock Mode Toggle */}
+                <div className="flex rounded-xl p-1 bg-slate-100 dark:bg-dark-surface border border-slate-200 dark:border-dark-border">
+                  <button
+                    type="button"
+                    onClick={() => setRestockMode('ADD')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      restockMode === 'ADD'
+                        ? 'bg-white dark:bg-dark-card text-brand-600 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    + Add Units to Existing Stock
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRestockMode('SET')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      restockMode === 'SET'
+                        ? 'bg-white dark:bg-dark-card text-brand-600 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    Set Exact Total Level
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    {restockMode === 'ADD' ? 'Units to Add (+)' : 'New Total Quantity (=)'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={restockQuantity}
+                    onChange={(e) => setRestockQuantity(e.target.value)}
+                    placeholder="e.g. 25"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2.5 text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    required
+                  />
+                </div>
+
+                {/* Quick Add Chips */}
+                {restockMode === 'ADD' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-400">Quick increments:</span>
+                    {[5, 10, 20, 50, 100].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setRestockQuantity(String(num))}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-card text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 transition-colors"
+                      >
+                        +{num}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Real-time Calculation Summary */}
+                <div className="p-3 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-900/50 flex items-center justify-between text-xs">
+                  <span className="text-brand-900 dark:text-brand-300 font-semibold">
+                    Calculated New Stock Level:
+                  </span>
+                  <span className="font-bold text-base text-brand-700 dark:text-brand-400">
+                    {restockMode === 'ADD'
+                      ? getProductStock(restockProduct) + (Number(restockQuantity) || 0)
+                      : Number(restockQuantity) || 0}{' '}
+                    Units
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Reason for Restock"
+                    value={restockReason}
+                    onChange={(e) => setRestockReason(e.target.value)}
+                    placeholder="e.g. Supplier delivery, Refill"
+                  />
+                  <Input
+                    label="Supplier / Reference Note (Optional)"
+                    value={restockNotes}
+                    onChange={(e) => setRestockNotes(e.target.value)}
+                    placeholder="e.g. Invoice #9021"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-300 space-y-1">
+                  <p className="font-bold">Serialized Product IMEI Intake</p>
+                  <p>
+                    Stock for serialized models is increased by registering individual unique IMEI numbers.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Primary IMEI (IMEI 1) *"
+                      value={quickImei1}
+                      onChange={(e) => setQuickImei1(e.target.value)}
+                      placeholder="e.g. 352948110293847"
+                      required
+                    />
+                  </div>
+                  <Input
+                    label="Secondary IMEI (IMEI 2 - Optional)"
+                    value={quickImei2}
+                    onChange={(e) => setQuickImei2(e.target.value)}
+                    placeholder="e.g. 352948110293848"
+                  />
+                  <Input
+                    label="Purchase Cost (LKR)"
+                    type="number"
+                    step="0.01"
+                    value={restockUnitCost}
+                    onChange={(e) => setRestockUnitCost(e.target.value)}
+                    placeholder={String(restockProduct.costPrice)}
+                  />
+                  <Input
+                    label="Color (Optional)"
+                    value={quickColor}
+                    onChange={(e) => setQuickColor(e.target.value)}
+                    placeholder="e.g. Titanium Gray"
+                  />
+                  <Input
+                    label="Storage (Optional)"
+                    value={quickStorage}
+                    onChange={(e) => setQuickStorage(e.target.value)}
+                    placeholder="e.g. 256GB"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRestockModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isRestocking}
+                className="shadow-glow-blue"
+              >
+                {restockProduct.isSerialized ? 'Register Device & Add Stock' : 'Confirm Restock'}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Product Details & Variants Modal */}
@@ -992,6 +1695,51 @@ export function Products() {
                       {activeProduct.isSerialized ? 'Serialized IMEI' : 'Quantity Stock'}
                     </p>
                   </div>
+                </div>
+
+                {/* Live Stock Level & Restock Callout */}
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                      Inventory Status & Location
+                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-base font-bold text-slate-900 dark:text-white">
+                        {getProductStock(activeProduct)} {activeProduct.isSerialized ? 'Units (IMEI)' : 'in Stock'}
+                      </span>
+                      {getProductStock(activeProduct) === 0 ? (
+                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                          OUT OF STOCK
+                        </span>
+                      ) : getProductStock(activeProduct) <= getProductThreshold(activeProduct) ? (
+                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300">
+                          LOW STOCK (≤ {getProductThreshold(activeProduct)})
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                          IN STOCK
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Reorder Alert Limit: <strong>{getProductThreshold(activeProduct)}</strong> • Bin / Location: <strong>{activeProduct.inventory?.[0]?.location || 'Store Floor'}</strong>
+                    </p>
+                  </div>
+
+                  {canManage && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailsOpen(false)
+                        handleOpenRestock(activeProduct)
+                      }}
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                      className="shadow-glow-blue shrink-0"
+                    >
+                      Restock Product
+                    </Button>
+                  )}
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-card space-y-2">

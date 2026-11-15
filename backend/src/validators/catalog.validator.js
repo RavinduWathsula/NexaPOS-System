@@ -52,10 +52,11 @@ export const createProductSchema = z.object({
   minPrice: z.coerce.number().min(0).optional(),
   defaultWarrantyMonths: z.coerce.number().int().min(0).default(0),
   initialStock: z.coerce.number().int().min(0).optional().default(0),
+  quantity: z.coerce.number().int().min(0).optional(),
   reorderLevel: z.coerce.number().int().min(0).optional().default(5),
   location: z.string().optional(),
-  imageUrl: z.string().url().optional().or(z.literal('')),
-  images: z.array(z.string().url()).optional(),
+  imageUrl: z.string().optional().or(z.literal('')),
+  images: z.array(z.string()).optional(),
   variants: z.array(variantItemSchema).optional(),
 })
 

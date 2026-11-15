@@ -247,7 +247,7 @@ export async function createProduct(data, userId) {
   })
 }
 
-export async function updateProduct(id, data) {
+export async function updateProduct(id, data, userId) {
   // Check unique SKU if updating
   if (data.sku) {
     const existing = await prisma.product.findFirst({
@@ -286,6 +286,69 @@ export async function updateProduct(id, data) {
         variants: true,
       },
     })
+
+    // Update inventory record (reorderLevel, location, quantity)
+    if (
+      data.reorderLevel !== undefined ||
+      data.location !== undefined ||
+      data.initialStock !== undefined ||
+      data.quantity !== undefined
+    ) {
+      const existingInv = await tx.inventory.findFirst({
+        where: { productId: id },
+      })
+
+      const newReorder = data.reorderLevel !== undefined ? Number(data.reorderLevel) : (existingInv?.reorderLevel ?? 5)
+      const newLoc = data.location !== undefined ? data.location : (existingInv?.location || 'Store Floor')
+      const targetQty = data.quantity !== undefined 
+        ? Number(data.quantity) 
+        : (data.initialStock !== undefined ? Number(data.initialStock) : undefined)
+
+      if (existingInv) {
+        const updateFields = {
+          reorderLevel: newReorder,
+          location: newLoc,
+        }
+
+        if (targetQty !== undefined && !updated.isSerialized) {
+          const prevQty = existingInv.quantity
+          updateFields.quantity = Math.max(0, targetQty)
+
+          if (targetQty !== prevQty) {
+            const diff = targetQty - prevQty
+            await tx.stockMovement.create({
+              data: {
+                productId: id,
+                type: diff > 0 ? 'STOCK_IN' : 'ADJUSTMENT',
+                quantity: Math.abs(diff),
+                previousQty: prevQty,
+                newQty: targetQty,
+                unitCost: updated.costPrice,
+                reference: diff > 0 ? `RESTOCK-${Date.now().toString().slice(-6)}` : `ADJ-${Date.now().toString().slice(-6)}`,
+                notes: diff > 0 ? 'Manual Stock Restock / Update' : 'Stock level updated via Product Edit',
+                createdById: userId || null,
+              },
+            })
+          }
+        }
+
+        await tx.inventory.update({
+          where: { id: existingInv.id },
+          data: updateFields,
+        })
+      } else {
+        const initialQty = (!updated.isSerialized && targetQty !== undefined) ? Math.max(0, targetQty) : 0
+        await tx.inventory.create({
+          data: {
+            productId: id,
+            quantity: initialQty,
+            reorderLevel: newReorder,
+            location: newLoc,
+            branch: 'Colombo Main',
+          },
+        })
+      }
+    }
 
     // If a new image URL is passed and not already present, attach it
     if (data.imageUrl) {
