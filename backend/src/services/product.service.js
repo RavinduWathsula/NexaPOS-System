@@ -49,7 +49,9 @@ export async function listProducts(filters = {}) {
           select: { id: true, name: true, slug: true },
         },
         variants: true,
-        images: true,
+        images: {
+          orderBy: { isPrimary: 'desc' },
+        },
         inventory: {
           select: { quantity: true, reorderLevel: true, location: true, branch: true },
         },
@@ -94,7 +96,9 @@ export async function getProductById(id) {
       category: true,
       brand: true,
       variants: true,
-      images: true,
+      images: {
+        orderBy: { isPrimary: 'desc' },
+      },
       inventory: true,
       devices: {
         where: { status: 'IN_STOCK' },
@@ -350,18 +354,34 @@ export async function updateProduct(id, data, userId) {
       }
     }
 
-    // If a new image URL is passed and not already present, attach it
-    if (data.imageUrl) {
-      const hasImg = await tx.productImage.findFirst({
-        where: { productId: id, url: data.imageUrl },
-      })
-      if (!hasImg) {
-        await tx.productImage.create({
-          data: {
-            productId: id,
-            url: data.imageUrl,
-            isPrimary: updated.images.length === 0,
-          },
+    // Update or set primary image
+    if (data.imageUrl !== undefined) {
+      const trimmedUrl = typeof data.imageUrl === 'string' ? data.imageUrl.trim() : ''
+      if (trimmedUrl) {
+        const primaryImg = await tx.productImage.findFirst({
+          where: { productId: id, isPrimary: true },
+        })
+        if (primaryImg) {
+          await tx.productImage.update({
+            where: { id: primaryImg.id },
+            data: { url: trimmedUrl },
+          })
+        } else {
+          await tx.productImage.updateMany({
+            where: { productId: id },
+            data: { isPrimary: false },
+          })
+          await tx.productImage.create({
+            data: {
+              productId: id,
+              url: trimmedUrl,
+              isPrimary: true,
+            },
+          })
+        }
+      } else {
+        await tx.productImage.deleteMany({
+          where: { productId: id },
         })
       }
     }
@@ -372,7 +392,9 @@ export async function updateProduct(id, data, userId) {
         category: true,
         brand: true,
         inventory: true,
-        images: true,
+        images: {
+          orderBy: { isPrimary: 'desc' },
+        },
         variants: true,
       },
     })

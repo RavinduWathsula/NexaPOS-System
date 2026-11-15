@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Package,
   Plus,
@@ -10,6 +10,7 @@ import {
   Boxes,
   RefreshCw,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +22,8 @@ import {
   Shield,
   Tag,
   Warehouse,
+  Upload,
+  X,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -34,6 +37,32 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { productsAPI, categoriesAPI, brandsAPI, inventoryAPI, devicesAPI } from '@/services/api'
 import { formatLKR } from '@/utils/currency'
 import { useAuthStore } from '@/stores/authStore'
+
+function ProductThumbnail({ src, alt, className = 'w-10 h-10' }) {
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    setHasError(false)
+  }, [src])
+
+  if (!src || hasError) {
+    return (
+      <div className={`rounded-xl bg-slate-100 dark:bg-dark-surface border border-slate-200 dark:border-dark-border flex items-center justify-center shrink-0 text-slate-400 ${className}`}>
+        <Package className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Product'}
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      className={`rounded-xl object-contain bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border shrink-0 p-0.5 shadow-2xs ${className}`}
+    />
+  )
+}
 
 export function Products() {
   const { user } = useAuthStore()
@@ -126,6 +155,32 @@ export function Products() {
   const [reorderLevel, setReorderLevel] = useState('5')
   const [location, setLocation] = useState('Store Floor')
   const [imageUrl, setImageUrl] = useState('')
+  const [imageLoadStatus, setImageLoadStatus] = useState('idle')
+  const fileInputRef = useRef(null)
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Selected image exceeds the 5MB size limit.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setImageUrl(reader.result)
+      setImageLoadStatus('valid')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleImageUrlChange = (val) => {
+    setImageUrl(val)
+    if (!val.trim()) {
+      setImageLoadStatus('idle')
+    } else {
+      setImageLoadStatus('loading')
+    }
+  }
 
   const fetchAuxiliary = async () => {
     try {
@@ -228,6 +283,8 @@ export function Products() {
     setReorderLevel('5')
     setLocation('Store Floor')
     setImageUrl('')
+    setImageLoadStatus('idle')
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setModalError('')
     setShowQuickCategory(false)
     setShowQuickBrand(false)
@@ -263,7 +320,10 @@ export function Products() {
     setRetailPrice(String(prod.retailPrice))
     setMinPrice(prod.minPrice ? String(prod.minPrice) : '')
     setDefaultWarrantyMonths(String(prod.defaultWarrantyMonths || 0))
-    setImageUrl(prod.images?.[0]?.url || '')
+    const initialImg = prod.images?.[0]?.url || ''
+    setImageUrl(initialImg)
+    setImageLoadStatus(initialImg ? 'loading' : 'idle')
+    if (fileInputRef.current) fileInputRef.current.value = ''
 
     // Current stock & threshold setup
     const curQty = getProductStock(prod)
@@ -778,17 +838,7 @@ export function Products() {
                   <TableRow key={p.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {p.images && p.images[0] ? (
-                          <img
-                            src={p.images[0].url}
-                            alt={p.name}
-                            className="w-9 h-9 rounded-lg object-cover border border-slate-200 dark:border-dark-border shrink-0 bg-white"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-dark-surface flex items-center justify-center shrink-0 text-slate-400">
-                            <Package className="w-4 h-4" />
-                          </div>
-                        )}
+                        <ProductThumbnail src={p.images?.[0]?.url} alt={p.name} />
                         <div>
                           <button
                             type="button"
@@ -839,40 +889,27 @@ export function Products() {
                         const isOut = stock === 0
                         const isLow = stock > 0 && stock <= limit
 
+                        if (isOut) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
+                              0 • OUT OF STOCK
+                            </span>
+                          )
+                        }
+                        if (isLow) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 shrink-0" />
+                              {stock} left • LOW (Limit {limit})
+                            </span>
+                          )
+                        }
                         return (
-                          <div className="flex flex-col gap-1.5 items-start">
-                            <div className="flex items-center gap-1.5">
-                              {isOut ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-2xs">
-                                  <AlertCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                                  0 • OUT OF STOCK
-                                </span>
-                              ) : isLow ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                                  <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                  {stock} left • LOW (Limit {limit})
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  {stock} {p.isSerialized ? 'Units' : 'in Stock'}
-                                </span>
-                              )}
-                            </div>
-                            {canManage && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenRestock(p)}
-                                className={`text-[11px] font-semibold flex items-center gap-1 transition-colors px-2 py-0.5 rounded-md border ${
-                                  isOut
-                                    ? 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100 dark:text-rose-300 dark:bg-rose-950/40 dark:border-rose-900'
-                                    : 'text-brand-600 bg-brand-50 border-brand-200 hover:bg-brand-100 dark:text-brand-400 dark:bg-brand-950/40 dark:border-brand-900'
-                                }`}
-                              >
-                                <Plus className="w-3 h-3" /> Restock
-                              </button>
-                            )}
-                          </div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shrink-0" />
+                            {stock} {p.isSerialized ? 'Units' : 'in Stock'}
+                          </span>
                         )
                       })()}
                     </TableCell>
@@ -1018,149 +1055,233 @@ export function Products() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Category *
+                  {showQuickCategory ? 'New Category Name *' : 'Category *'}
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowQuickCategory(!showQuickCategory)}
-                  className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline font-semibold flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" /> Quick Add
-                </button>
+                {!showQuickCategory ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickCategory(true)
+                      setQuickCategoryName('')
+                    }}
+                    className="text-[11px] text-brand-600 dark:text-brand-400 hover:text-brand-700 font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> Quick Add
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCategory(false)}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
 
-              {showQuickCategory && (
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 animate-in fade-in">
+              {showQuickCategory ? (
+                <div className="flex items-center gap-2 animate-in fade-in">
                   <input
                     type="text"
+                    autoFocus
                     value={quickCategoryName}
                     onChange={(e) => setQuickCategoryName(e.target.value)}
-                    placeholder="New category name..."
-                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-card text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Enter new category name..."
+                    className="flex-1 rounded-xl border border-brand-500 bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
                         handleQuickCreateCategory()
+                      } else if (e.key === 'Escape') {
+                        setShowQuickCategory(false)
                       }
                     }}
                   />
                   <Button
                     type="button"
-                    size="xs"
+                    size="sm"
                     variant="primary"
                     onClick={handleQuickCreateCategory}
                     isLoading={quickCategoryLoading}
+                    className="shrink-0"
                   >
                     Save
                   </Button>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setShowQuickCategory(false)}
-                  >
-                    Cancel
-                  </Button>
                 </div>
+              ) : (
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
+                >
+                  <option value="">{categories.length === 0 ? 'No categories yet — click Quick Add' : 'Select Category'}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               )}
-
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                required
-                className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
-              >
-                <option value="">{categories.length === 0 ? 'No categories yet — click Quick Add' : 'Select Category'}</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
-                    {c.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             {/* Brand Selection with Quick Add */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Brand (Optional)
+                  {showQuickBrand ? 'New Brand Name' : 'Brand (Optional)'}
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowQuickBrand(!showQuickBrand)}
-                  className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline font-semibold flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" /> Quick Add
-                </button>
+                {!showQuickBrand ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickBrand(true)
+                      setQuickBrandName('')
+                    }}
+                    className="text-[11px] text-brand-600 dark:text-brand-400 hover:text-brand-700 font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> Quick Add
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickBrand(false)}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
 
-              {showQuickBrand && (
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 animate-in fade-in">
+              {showQuickBrand ? (
+                <div className="flex items-center gap-2 animate-in fade-in">
                   <input
                     type="text"
+                    autoFocus
                     value={quickBrandName}
                     onChange={(e) => setQuickBrandName(e.target.value)}
-                    placeholder="New brand name..."
-                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-card text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Enter new brand name..."
+                    className="flex-1 rounded-xl border border-brand-500 bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
                         handleQuickCreateBrand()
+                      } else if (e.key === 'Escape') {
+                        setShowQuickBrand(false)
                       }
                     }}
                   />
                   <Button
                     type="button"
-                    size="xs"
+                    size="sm"
                     variant="primary"
                     onClick={handleQuickCreateBrand}
                     isLoading={quickBrandLoading}
+                    className="shrink-0"
                   >
                     Save
                   </Button>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setShowQuickBrand(false)}
-                  >
-                    Cancel
-                  </Button>
                 </div>
+              ) : (
+                <select
+                  value={brandId}
+                  onChange={(e) => setBrandId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
+                >
+                  <option value="">{brands.length === 0 ? 'No brands yet — click Quick Add' : 'Select Brand (Optional)'}</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
               )}
-
-              <select
-                value={brandId}
-                onChange={(e) => setBrandId(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer"
-              >
-                <option value="">{brands.length === 0 ? 'No brands yet — click Quick Add' : 'Select Brand (Optional)'}</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id} className="text-slate-900 dark:text-white bg-white dark:bg-dark-surface">
-                    {b.name}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
 
-          {/* Image URL preview */}
-          <div>
-            <Input
-              label="Product Image URL (Optional)"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://images.unsplash.com/photo-..."
-            />
+          {/* Product Image Section (Upload & URL) */}
+          <div className="space-y-2 p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/60 dark:bg-dark-surface/40">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Product Image (Optional)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => fileInputRef.current?.click()}
+                  leftIcon={<Upload className="w-3.5 h-3.5" />}
+                  className="bg-white dark:bg-dark-card"
+                >
+                  Upload from Computer
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={(e) => handleImageUrlChange(e.target.value)}
+                placeholder="Or paste direct image URL (e.g. https://...image.jpg)"
+                className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 pr-8"
+              />
+              {imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageUrl('')
+                    setImageLoadStatus('idle')
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                  title="Remove image"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
             {imageUrl && (
-              <div className="mt-2 flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-dark-surface border border-slate-200 dark:border-dark-border">
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border animate-in fade-in">
                 <img
                   src={imageUrl}
                   alt="Preview"
-                  className="w-12 h-12 rounded-lg object-cover border"
-                  onError={(e) => (e.target.style.display = 'none')}
+                  referrerPolicy="no-referrer"
+                  onLoad={() => setImageLoadStatus('valid')}
+                  onError={() => setImageLoadStatus('error')}
+                  className="w-12 h-12 rounded-lg object-contain bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border shrink-0 p-0.5"
                 />
-                <span className="text-[11px] text-slate-500">Image preview valid</span>
+                <div className="flex-1 min-w-0">
+                  {imageLoadStatus === 'valid' && (
+                    <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Image loaded successfully</span>
+                    </div>
+                  )}
+                  {imageLoadStatus === 'error' && (
+                    <div className="text-xs space-y-0.5">
+                      <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-bold">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Could not display image from this link</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Right-click the picture itself on the webpage and select <em>"Copy Image Address"</em>, or click <strong>"Upload from Computer"</strong> above.
+                      </p>
+                    </div>
+                  )}
+                  {imageLoadStatus === 'loading' && (
+                    <span className="text-xs text-slate-400 animate-pulse">Testing image link...</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1174,8 +1295,8 @@ export function Products() {
               </p>
               <p className="text-[11px] text-slate-400">
                 {isSerialized
-                  ? 'Each unit will require a unique IMEI 1. Individual unit inventory managed in IMEI Registry.'
-                  : 'Ordinary accessory: Managed using numeric quantity count.'}
+                  ? 'Each unit requires a unique IMEI 1. Inventory is tracked by individual IMEI numbers.'
+                  : 'Bulk accessory: Tracked using numeric quantity count.'}
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -1227,115 +1348,77 @@ export function Products() {
             />
           </div>
 
-          {/* Stock & Inventory Thresholds Configuration */}
-          <div className="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-dark-surface/50 p-4 space-y-3">
+          {/* Stock & Inventory Thresholds Section */}
+          <div className="pt-3 border-t border-slate-100 dark:border-dark-border space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Boxes className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                  Stock Quantity & Alert Limits
-                </h4>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Inventory & Stock Limits
+                </span>
               </div>
 
-              {/* Real-time stock status badge */}
+              {/* Status Badge */}
               {!isSerialized ? (
                 <div>
                   {Number(initialStock || 0) === 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-2xs">
-                      <AlertCircle className="w-3 h-3 text-rose-600" /> 0 • OUT OF STOCK
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />
+                      0 • OUT OF STOCK
                     </span>
                   ) : Number(initialStock) <= Number(reorderLevel || 5) ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                      <AlertCircle className="w-3 h-3 text-amber-600" /> LOW STOCK ({initialStock} left • Limit: {reorderLevel})
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" />
+                      LOW STOCK ({initialStock} left • Limit: {reorderLevel})
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> IN STOCK ({initialStock} Units)
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+                      IN STOCK ({initialStock} Units)
                     </span>
                   )}
                 </div>
               ) : (
                 <Badge variant="purple" size="sm">
-                  IMEI Serialized ({editingProduct ? (editingProduct.stockCount || 0) : 0} In-Stock Devices)
+                  IMEI Serialized ({editingProduct ? (editingProduct.stockCount || 0) : 0} Devices Active)
                 </Badge>
               )}
             </div>
 
             {!isSerialized ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
-                      {editingProduct ? 'Current Stock Quantity' : 'Initial Quantity'}
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={initialStock}
-                      onChange={(e) => setInitialStock(e.target.value)}
-                      placeholder="0"
-                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
-                      Reorder Threshold (Alert Limit)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={reorderLevel}
-                      onChange={(e) => setReorderLevel(e.target.value)}
-                      placeholder="5"
-                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-0.5">Triggers "LOW STOCK" when ≤ this limit.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
-                      Storage Bin / Location
-                    </label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="e.g. Store Floor, Rack A2"
-                      className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Add / Restock buttons right inside modal */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1">
-                    Quick Restock (+Units):
-                  </span>
-                  {[5, 10, 25, 50, 100].map((delta) => (
-                    <button
-                      key={delta}
-                      type="button"
-                      onClick={() => setInitialStock(String(Math.max(0, (Number(initialStock) || 0) + delta)))}
-                      className="px-2.5 py-0.5 text-xs font-bold rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-dark-card text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950 transition-colors shadow-2xs"
-                    >
-                      +{delta}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setInitialStock('0')}
-                    className="px-2.5 py-0.5 text-xs font-medium rounded-lg border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-dark-card text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
-                  >
-                    Set to 0 (Out of Stock)
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-start">
+                {/* Column 1: Quantity with Quick Add */}
                 <div>
                   <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
-                    Reorder Threshold (Alert Limit)
+                    {editingProduct ? 'Current Quantity' : 'Initial Quantity'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={initialStock}
+                    onChange={(e) => setInitialStock(e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <span className="text-[10px] text-slate-400 mr-0.5">Quick add:</span>
+                    {[5, 10, 25, 50].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setInitialStock(String(Math.max(0, (Number(initialStock) || 0) + num)))}
+                        className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-100 hover:bg-brand-50 hover:text-brand-600 dark:bg-dark-surface dark:hover:bg-brand-950 text-slate-600 dark:text-slate-400 transition-colors"
+                      >
+                        +{num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Column 2: Reorder Threshold */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    Low Stock Alert Limit
                   </label>
                   <input
                     type="number"
@@ -1345,7 +1428,45 @@ export function Products() {
                     placeholder="5"
                     className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">Triggers low stock alert when devices count is ≤ this.</p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    Triggers low stock notice when quantity ≤ this limit.
+                  </p>
+                </div>
+
+                {/* Column 3: Storage Location */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    Storage Bin / Location
+                  </label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Store Floor, Rack A2"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    Physical display or back-office storage bin.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                    Low Stock Alert Limit
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={reorderLevel}
+                    onChange={(e) => setReorderLevel(e.target.value)}
+                    placeholder="5"
+                    className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    Triggers alert when active serialized devices ≤ this limit.
+                  </p>
                 </div>
 
                 <div>
@@ -1359,11 +1480,14 @@ export function Products() {
                     placeholder="e.g. Vault, Display 1"
                     className="w-full rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    Physical display or vault location.
+                  </p>
                 </div>
 
                 <div className="sm:col-span-2 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-300 flex items-center justify-between">
                   <span>
-                    <strong>Serialized Inventory:</strong> Stock is calculated live from active IMEIs in the device registry.
+                    <strong>Serialized Inventory:</strong> Quantity is derived live from active IMEIs in the device registry.
                   </span>
                   <a
                     href="/imei-devices"
@@ -2100,8 +2224,22 @@ export function Products() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {activeProduct.images?.map((img) => (
-                    <div key={img.id} className="relative group border rounded-xl overflow-hidden border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-surface aspect-square">
-                      <img src={img.url} alt="Product" className="w-full h-full object-cover" />
+                    <div key={img.id} className="relative group border rounded-xl overflow-hidden border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-surface aspect-square flex items-center justify-center">
+                      <img
+                        src={img.url}
+                        alt="Product"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          if (e.currentTarget.nextSibling) {
+                            e.currentTarget.nextSibling.style.display = 'flex'
+                          }
+                        }}
+                      />
+                      <div className="hidden w-full h-full items-center justify-center text-slate-400">
+                        <Package className="w-8 h-8" />
+                      </div>
                       {canManage && (
                         <button
                           type="button"

@@ -570,10 +570,26 @@ export function POSTerminal() {
                       {/* Image Thumbnail */}
                       <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-100 dark:bg-dark-card flex items-center justify-center mb-2">
                         {p.image ? (
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Smartphone className="w-8 h-8 text-slate-300" />
-                        )}
+                          <img
+                            src={p.image}
+                            alt={p.name}
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none'
+                              if (e.currentTarget.nextSibling) {
+                                e.currentTarget.nextSibling.style.display = 'flex'
+                              }
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : null}
+                        <div
+                          className={`w-full h-full items-center justify-center text-slate-300 ${
+                            p.image ? 'hidden' : 'flex'
+                          }`}
+                        >
+                          <Smartphone className="w-8 h-8" />
+                        </div>
                         {p.isSerialized && (
                           <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-purpleAccent-600 text-white flex items-center gap-1 shadow">
                             <ScanLine className="w-2.5 h-2.5" /> IMEI

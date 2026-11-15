@@ -31,7 +31,7 @@ export async function getPOSCatalog(filters = {}) {
       category: { select: { id: true, name: true } },
       brand: { select: { id: true, name: true } },
       variants: true,
-      images: { where: { isPrimary: true }, take: 1 },
+      images: { orderBy: { isPrimary: 'desc' }, take: 1 },
       inventory: true,
       devices: {
         where: { status: 'IN_STOCK' },
