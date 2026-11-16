@@ -696,7 +696,7 @@ export function POSTerminal() {
                       }`}
                     >
                       {/* Image Thumbnail */}
-                      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-100 dark:bg-dark-card flex items-center justify-center mb-2">
+                      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white dark:bg-dark-card border border-slate-100 dark:border-dark-border/60 flex items-center justify-center mb-2 p-2 shadow-2xs">
                         {p.image ? (
                           <img
                             src={p.image}
@@ -708,7 +708,7 @@ export function POSTerminal() {
                                 e.currentTarget.nextSibling.style.display = 'flex'
                               }
                             }}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain transition-transform duration-200 group-hover:scale-105"
                           />
                         ) : null}
                         <div

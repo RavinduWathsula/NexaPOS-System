@@ -2224,12 +2224,12 @@ export function Products() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {activeProduct.images?.map((img) => (
-                    <div key={img.id} className="relative group border rounded-xl overflow-hidden border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-surface aspect-square flex items-center justify-center">
+                    <div key={img.id} className="relative group border rounded-xl overflow-hidden border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface aspect-square flex items-center justify-center p-1.5">
                       <img
                         src={img.url}
                         alt="Product"
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none'
                           if (e.currentTarget.nextSibling) {
