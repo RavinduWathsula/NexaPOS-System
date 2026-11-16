@@ -74,7 +74,7 @@ export async function getSystemNotifications(user) {
         type: 'success',
         category: 'sales',
         timestamp: sale.createdAt,
-        actionUrl: '/sales',
+        actionUrl: '/sales-invoices',
       })
     }
   } catch (err) {
@@ -101,7 +101,7 @@ export async function getSystemNotifications(user) {
           type: 'success',
           category: 'repairs',
           timestamp: repair.updatedAt,
-          actionUrl: '/repairs',
+          actionUrl: '/repair-management',
         })
       } else if (repair.status === 'IN_PROGRESS') {
         notifications.push({
@@ -111,7 +111,7 @@ export async function getSystemNotifications(user) {
           type: 'info',
           category: 'repairs',
           timestamp: repair.updatedAt,
-          actionUrl: '/repairs',
+          actionUrl: '/repair-management',
         })
       }
     }
@@ -138,7 +138,7 @@ export async function getSystemNotifications(user) {
         type: 'info',
         category: 'warranty',
         timestamp: w.createdAt,
-        actionUrl: '/warranty',
+        actionUrl: '/warranty-management',
       })
     }
   } catch (err) {

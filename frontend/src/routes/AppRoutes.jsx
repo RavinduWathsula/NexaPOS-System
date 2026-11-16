@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AdminLayout } from '@/components/layout/AdminLayout'
 import { ProtectedRoute } from './ProtectedRoute'
 
@@ -91,6 +91,17 @@ export function AppRoutes() {
             <Route path="/employees" element={<Employees />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
+
+          {/* Common Aliases & Deep-Link Forwarding */}
+          <Route path="/sales" element={<Navigate to="/sales-invoices" replace />} />
+          <Route path="/invoices" element={<Navigate to="/sales-invoices" replace />} />
+          <Route path="/repairs" element={<Navigate to="/repair-management" replace />} />
+          <Route path="/warranty" element={<Navigate to="/warranty-management" replace />} />
+          <Route path="/warranties" element={<Navigate to="/warranty-management" replace />} />
+          <Route path="/reports" element={<Navigate to="/reports-analytics" replace />} />
+          <Route path="/expenses" element={<Navigate to="/expenses-finance" replace />} />
+          <Route path="/devices" element={<Navigate to="/imei-devices" replace />} />
+          <Route path="/imei" element={<Navigate to="/imei-devices" replace />} />
 
           {/* Fallback 404 */}
           <Route path="*" element={<NotFound />} />

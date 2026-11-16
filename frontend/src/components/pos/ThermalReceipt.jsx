@@ -258,8 +258,9 @@ export function ThermalReceipt({ sale, onClose }) {
           </button>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+        {/* Action Buttons: Print, Close */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 justify-end w-full sm:w-auto">
+          {/* Print Button */}
           {format === 'a4' ? (
             <Button
               variant="primary"

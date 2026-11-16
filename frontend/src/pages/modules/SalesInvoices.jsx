@@ -323,7 +323,7 @@ export function SalesInvoices() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleOpenReceipt(sale)}
-                        title="View / Reprint 80mm Receipt"
+                        title="View / Reprint 80mm & A4 Receipt"
                       >
                         <Printer className="w-3.5 h-3.5 text-slate-500 hover:text-brand-600" />
                       </Button>
