@@ -24,6 +24,12 @@ import {
   Check,
   Tag,
   Warehouse,
+  Globe,
+  MapPin,
+  Info,
+  Eye,
+  Package,
+  ShoppingCart,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -57,6 +63,12 @@ export function POSTerminal() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [invoiceDiscount, setInvoiceDiscount] = useState(0)
   const [invoiceTax, setInvoiceTax] = useState(0)
+
+  // Product Details Modal State
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+  const [detailsProduct, setDetailsProduct] = useState(null)
+  const [detailsQty, setDetailsQty] = useState(1)
+  const [detailsSelectedImeis, setDetailsSelectedImeis] = useState([])
 
   // IMEI Picker Modal State
   const [isImeiModalOpen, setIsImeiModalOpen] = useState(false)
@@ -168,8 +180,123 @@ export function POSTerminal() {
     setTimeout(() => setToastMsg(''), 3000)
   }
 
-  // Product Card Click
-  const handleProductClick = (product) => {
+  // Product Details Modal Open (Triggered when user clicks product card)
+  const handleOpenDetails = (product) => {
+    setDetailsProduct(product)
+    setDetailsQty(1)
+    if (product.isSerialized && product.availableDevices?.length > 0) {
+      setDetailsSelectedImeis([product.availableDevices[0]])
+    } else {
+      setDetailsSelectedImeis([])
+    }
+    setIsDetailsModalOpen(true)
+  }
+
+  // Add to Cart from Details Modal
+  const handleAddFromDetails = () => {
+    if (!detailsProduct) return
+    if (detailsProduct.availableStock <= 0) {
+      setErrorMsg(`'${detailsProduct.name}' is currently out of stock.`)
+      setTimeout(() => setErrorMsg(''), 3000)
+      return
+    }
+
+    if (detailsProduct.isSerialized) {
+      if (detailsSelectedImeis.length === 0) {
+        setErrorMsg('Please select at least one in-stock IMEI device.')
+        setTimeout(() => setErrorMsg(''), 3000)
+        return
+      }
+
+      setCart((prev) => {
+        const existingIdx = prev.findIndex(
+          (item) => item.productId === detailsProduct.id && item.isSerialized
+        )
+        const newDeviceObjects = detailsSelectedImeis.map((dev) => ({
+          deviceId: dev.id,
+          imei1: dev.imei1,
+          serialNumber: dev.serialNumber || '',
+          color: dev.color || '',
+          storage: dev.storage || '',
+          sellingPrice: dev.sellingPrice || detailsProduct.retailPrice,
+        }))
+
+        if (existingIdx >= 0) {
+          const updated = [...prev]
+          const existingDevices = updated[existingIdx].devices || []
+          const uniqueDevices = [...existingDevices]
+          newDeviceObjects.forEach((nd) => {
+            if (!uniqueDevices.some((d) => d.deviceId === nd.deviceId)) {
+              uniqueDevices.push(nd)
+            }
+          })
+          updated[existingIdx].quantity = uniqueDevices.length
+          updated[existingIdx].devices = uniqueDevices
+          return updated
+        } else {
+          return [
+            ...prev,
+            {
+              productId: detailsProduct.id,
+              name: detailsProduct.name,
+              sku: detailsProduct.sku,
+              unitPrice: detailsProduct.retailPrice,
+              quantity: newDeviceObjects.length,
+              discount: 0,
+              isSerialized: true,
+              devices: newDeviceObjects,
+              availableStock: detailsProduct.availableStock,
+            },
+          ]
+        }
+      })
+      showToast(`Added ${detailsSelectedImeis.length} device(s) of ${detailsProduct.name}`)
+      setIsDetailsModalOpen(false)
+    } else {
+      // Non-serialized accessory with selected quantity
+      setCart((prev) => {
+        const existingIdx = prev.findIndex(
+          (item) => item.productId === detailsProduct.id && !item.isSerialized
+        )
+        if (existingIdx >= 0) {
+          const currentQty = prev[existingIdx].quantity
+          const newQty = currentQty + detailsQty
+          if (newQty > detailsProduct.availableStock) {
+            setErrorMsg(`Cannot add more than ${detailsProduct.availableStock} units in stock.`)
+            setTimeout(() => setErrorMsg(''), 3000)
+            return prev
+          }
+          const updated = [...prev]
+          updated[existingIdx].quantity = newQty
+          return updated
+        } else {
+          if (detailsQty > detailsProduct.availableStock) {
+            setErrorMsg(`Cannot add more than ${detailsProduct.availableStock} units in stock.`)
+            setTimeout(() => setErrorMsg(''), 3000)
+            return prev
+          }
+          return [
+            ...prev,
+            {
+              productId: detailsProduct.id,
+              name: detailsProduct.name,
+              sku: detailsProduct.sku,
+              unitPrice: detailsProduct.retailPrice,
+              quantity: detailsQty,
+              discount: 0,
+              isSerialized: false,
+              availableStock: detailsProduct.availableStock,
+            },
+          ]
+        }
+      })
+      showToast(`Added ${detailsQty} × ${detailsProduct.name}`)
+      setIsDetailsModalOpen(false)
+    }
+  }
+
+  // Quick 1-click addition directly from the card button
+  const handleQuickAdd = (product) => {
     if (product.availableStock <= 0) {
       setErrorMsg(`'${product.name}' is currently out of stock.`)
       setTimeout(() => setErrorMsg(''), 3000)
@@ -177,14 +304,15 @@ export function POSTerminal() {
     }
 
     if (product.isSerialized) {
-      // Serialized product: open IMEI selection modal
-      setTargetSerializedProduct(product)
-      setSelectedImeiDevices([])
-      setIsImeiModalOpen(true)
+      handleOpenDetails(product)
     } else {
-      // Non-serialized item: add or increment quantity
       addNonSerializedToCart(product)
     }
+  }
+
+  // Product Card Click (Opens Rich Details Modal)
+  const handleProductClick = (product) => {
+    handleOpenDetails(product)
   }
 
   // Add Non-Serialized Accessory to Cart
@@ -595,10 +723,29 @@ export function POSTerminal() {
                             <ScanLine className="w-2.5 h-2.5" /> IMEI
                           </span>
                         )}
+                        <span
+                          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-white/90 dark:bg-dark-surface/90 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shadow-2xs"
+                          title="View Specifications & Details"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </span>
                       </div>
 
                       {/* Info */}
                       <div>
+                        <div className="flex items-center gap-1 mb-1 flex-wrap">
+                          {p.brand && (
+                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.2 rounded">
+                              {p.brand}
+                            </span>
+                          )}
+                          {p.brandCountry && (
+                            <span className="text-[9px] font-medium text-slate-500 bg-slate-100 dark:bg-dark-card px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                              <Globe className="w-2.5 h-2.5 text-slate-400" />
+                              {p.brandCountry}
+                            </span>
+                          )}
+                        </div>
                         <p className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1 group-hover:text-brand-600 transition-colors">
                           {p.name}
                         </p>
@@ -607,23 +754,39 @@ export function POSTerminal() {
                         </span>
                       </div>
 
-                      {/* Stock & Price */}
-                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-dark-border/60 flex items-center justify-between">
-                        <span className="text-xs font-black text-slate-900 dark:text-white">
-                          {formatLKR(p.retailPrice)}
-                        </span>
+                      {/* Stock & Price + Quick Add Button */}
+                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-dark-border/60 flex items-center justify-between gap-1">
+                        <div>
+                          <span className="text-xs font-black text-slate-900 dark:text-white block">
+                            {formatLKR(p.retailPrice)}
+                          </span>
 
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                            isOutOfStock
-                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60'
-                              : p.availableStock <= 3
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60'
-                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60'
-                          }`}
-                        >
-                          {isOutOfStock ? 'Out' : `${p.availableStock} in stock`}
-                        </span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md inline-block mt-0.5 ${
+                              isOutOfStock
+                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60'
+                                : p.availableStock <= 3
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60'
+                            }`}
+                          >
+                            {isOutOfStock ? 'Out' : `${p.availableStock} in stock`}
+                          </span>
+                        </div>
+
+                        {!isOutOfStock && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleQuickAdd(p)
+                            }}
+                            className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-600 dark:hover:text-white flex items-center justify-center transition-colors shadow-2xs shrink-0"
+                            title="Quick Add to Cart"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -801,6 +964,317 @@ export function POSTerminal() {
           </div>
         </div>
       </div>
+
+      {/* MODAL 0: PRODUCT SPECIFICATIONS & DETAILS QUICK VIEW */}
+      <Modal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        title="Product Specifications & Details"
+        description={
+          detailsProduct
+            ? `SKU: ${detailsProduct.sku} • Barcode: ${detailsProduct.barcode || 'N/A'}`
+            : ''
+        }
+        maxWidth="2xl"
+      >
+        {detailsProduct && (
+          <div className="space-y-4">
+            {/* Top Identity Card */}
+            <div className="flex flex-col sm:flex-row items-start gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-dark-surface/60 border border-slate-200 dark:border-dark-border">
+              {/* Image Preview */}
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border flex items-center justify-center p-2 shrink-0 overflow-hidden shadow-2xs">
+                {detailsProduct.image ? (
+                  <img
+                    src={detailsProduct.image}
+                    alt={detailsProduct.name}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      if (e.currentTarget.nextSibling) {
+                        e.currentTarget.nextSibling.style.display = 'flex'
+                      }
+                    }}
+                    className="w-full h-full object-contain"
+                  />
+                ) : null}
+                <div
+                  className={`w-full h-full items-center justify-center text-slate-400 ${
+                    detailsProduct.image ? 'hidden' : 'flex'
+                  }`}
+                >
+                  <Package className="w-10 h-10" />
+                </div>
+              </div>
+
+              {/* Product Info & Specs */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {detailsProduct.brand && (
+                    <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold flex items-center gap-1">
+                      <Tag className="w-3 h-3" />
+                      Brand: {detailsProduct.brand}
+                    </span>
+                  )}
+                  {detailsProduct.brandCountry && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold flex items-center gap-1">
+                      <Globe className="w-3 h-3" />
+                      Country: {detailsProduct.brandCountry}
+                    </span>
+                  )}
+                  {detailsProduct.category && (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-dark-card text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border text-xs font-medium">
+                      Category: {detailsProduct.category}
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-1.5">
+                  {detailsProduct.name}
+                </h3>
+
+                {detailsProduct.description && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                    {detailsProduct.description}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    Storage Bin:{' '}
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {detailsProduct.location || 'Store Floor'}
+                    </strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Stock Level:{' '}
+                    <strong
+                      className={
+                        detailsProduct.availableStock <= detailsProduct.reorderLevel
+                          ? 'text-amber-600 font-bold'
+                          : 'text-emerald-600 font-bold'
+                      }
+                    >
+                      {detailsProduct.availableStock} Units In Stock
+                    </strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Tracking:{' '}
+                    <strong>
+                      {detailsProduct.isSerialized ? 'Serialized IMEI' : 'Quantity Count'}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing & Warranty Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Retail Selling Price */}
+              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-900/60 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300 block">
+                  Retail Selling Price
+                </span>
+                <span className="text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 font-mono mt-0.5 block">
+                  {formatLKR(detailsProduct.retailPrice)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Official customer retail price
+                </span>
+              </div>
+
+              {/* Min Floor Price */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-dark-surface border border-slate-200 dark:border-dark-border shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                  Min Selling Floor
+                </span>
+                <span className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-200 font-mono mt-0.5 block">
+                  {detailsProduct.minPrice
+                    ? formatLKR(detailsProduct.minPrice)
+                    : 'No Minimum Floor'}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Maximum allowed cashier discount
+                </span>
+              </div>
+
+              {/* Hardware Warranty */}
+              <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 block flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  Official Warranty
+                </span>
+                <span className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">
+                  {detailsProduct.defaultWarrantyMonths || 0} Months
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Full Store Hardware Warranty
+                </span>
+              </div>
+            </div>
+
+            {/* Serialized Devices / IMEI Selector (If Serialized Phone) */}
+            {detailsProduct.isSerialized ? (
+              <div className="space-y-2 border-t border-slate-200 dark:border-dark-border pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <ScanLine className="w-4 h-4 text-purpleAccent-500" />
+                    Available In-Stock IMEI Units ({detailsProduct.availableDevices?.length || 0})
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Click to select device(s)
+                  </span>
+                </div>
+
+                {detailsProduct.availableDevices?.length === 0 ? (
+                  <p className="text-xs text-rose-600 p-3 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200 text-center font-semibold">
+                    No IMEI devices available in stock for this product.
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 dark:border-dark-border rounded-xl p-2 bg-slate-50/50 dark:bg-dark-surface/40">
+                    {detailsProduct.availableDevices?.map((dev) => {
+                      const isSelected = detailsSelectedImeis.some((d) => d.id === dev.id)
+                      return (
+                        <div
+                          key={dev.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setDetailsSelectedImeis((prev) =>
+                                prev.filter((d) => d.id !== dev.id)
+                              )
+                            } else {
+                              setDetailsSelectedImeis((prev) => [...prev, dev])
+                            }
+                          }}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 text-brand-900 dark:text-white shadow-2xs'
+                              : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-card hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-4 h-4 rounded border flex items-center justify-center ${
+                                isSelected
+                                  ? 'bg-brand-600 border-brand-600 text-white'
+                                  : 'border-slate-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3" />}
+                            </div>
+                            <div>
+                              <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                IMEI: {dev.imei1}
+                              </span>
+                              {dev.imei2 && (
+                                <span className="text-[10px] text-slate-400 font-mono ml-2">
+                                  SIM2: {dev.imei2}
+                                </span>
+                              )}
+                              <div className="text-[10px] text-slate-500">
+                                {dev.storage ? `${dev.storage} • ` : ''}
+                                {dev.color || 'Standard Color'}
+                                {dev.serialNumber ? ` • S/N: ${dev.serialNumber}` : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-xs font-mono text-slate-900 dark:text-white">
+                              {formatLKR(dev.sellingPrice || detailsProduct.retailPrice)}
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-semibold block">
+                              Ready
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Non-Serialized Quantity Selector */
+              <div className="border-t border-slate-200 dark:border-dark-border pt-3 flex items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
+                    Quantity to Add
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Available in stock: <strong>{detailsProduct.availableStock}</strong> units
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDetailsQty((q) => Math.max(1, q - 1))}
+                    disabled={detailsQty <= 1}
+                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    max={detailsProduct.availableStock}
+                    value={detailsQty}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value) || 1
+                      setDetailsQty(Math.min(detailsProduct.availableStock, Math.max(1, v)))
+                    }}
+                    className="w-16 text-center font-bold text-sm py-1 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDetailsQty((q) => Math.min(detailsProduct.availableStock, q + 1))
+                    }
+                    disabled={detailsQty >= detailsProduct.availableStock}
+                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-dark-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDetailsModalOpen(false)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAddFromDetails}
+                disabled={
+                  detailsProduct.availableStock <= 0 ||
+                  (detailsProduct.isSerialized && detailsSelectedImeis.length === 0)
+                }
+                leftIcon={<ShoppingCart className="w-4 h-4" />}
+              >
+                {detailsProduct.isSerialized
+                  ? `Add ${
+                      detailsSelectedImeis.length > 0
+                        ? `${detailsSelectedImeis.length} Unit(s)`
+                        : ''
+                    } to Cart • ${formatLKR(
+                      detailsProduct.retailPrice * (detailsSelectedImeis.length || 1)
+                    )}`
+                  : `Add ${detailsQty} Unit(s) to Cart • ${formatLKR(
+                      detailsProduct.retailPrice * detailsQty
+                    )}`}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* MODAL 1: SERIALIZED PHONE IMEI PICKER */}
       <Modal

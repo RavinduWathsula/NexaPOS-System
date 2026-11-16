@@ -30,7 +30,8 @@ export function ThermalReceipt({ sale, onClose }) {
     store_address: 'No. 142, Galle Road, Colombo 03, Sri Lanka',
     store_phone: '+94 11 234 5678',
     store_email: 'sales@nexapos.lk',
-    receipt_footer_note: 'Thank you for choosing NexaPOS! Please preserve this invoice for all warranty claims.',
+    receipt_footer_note:
+      'Thank you for choosing NexaPOS! Please preserve this invoice for all warranty claims.',
   })
 
   const a4PrintRef = useRef(null)
@@ -75,7 +76,11 @@ export function ThermalReceipt({ sale, onClose }) {
     const printContent = a4PrintRef.current
     if (!printContent) return
 
-    const windowPrint = window.open('', '', 'left=0,top=0,width=1024,height=900,toolbar=0,scrollbars=0,status=0')
+    const windowPrint = window.open(
+      '',
+      '',
+      'left=0,top=0,width=1024,height=900,toolbar=0,scrollbars=0,status=0'
+    )
     if (!windowPrint) {
       alert('Please allow popups to print invoices.')
       return
@@ -118,6 +123,17 @@ export function ThermalReceipt({ sale, onClose }) {
               box-shadow: none !important;
               border: none !important;
             }
+            /* Always display full desktop table in print */
+            .desktop-items-table {
+              display: block !important;
+            }
+            .desktop-items-table table {
+              display: table !important;
+              width: 100% !important;
+            }
+            .mobile-items-card-list {
+              display: none !important;
+            }
             .page-break-avoid {
               page-break-inside: avoid !important;
               break-inside: avoid !important;
@@ -148,7 +164,11 @@ export function ThermalReceipt({ sale, onClose }) {
     const printContent = thermalPrintRef.current
     if (!printContent) return
 
-    const windowPrint = window.open('', '', 'left=0,top=0,width=800,height=900,toolbar=0,scrollbars=0,status=0')
+    const windowPrint = window.open(
+      '',
+      '',
+      'left=0,top=0,width=800,height=900,toolbar=0,scrollbars=0,status=0'
+    )
     if (!windowPrint) {
       alert('Please allow popups to print receipts.')
       return
@@ -200,24 +220,24 @@ export function ThermalReceipt({ sale, onClose }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Top Format Selector & Action Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-dark-border">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-200 dark:border-dark-border">
         {/* Toggle between A4 Color Bill and Thermal Slip */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border">
+        <div className="grid grid-cols-2 sm:flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setFormat('a4')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               format === 'a4'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
-            <span>A4 Professional Bill (Color)</span>
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">A4 Bill (Color)</span>
             <span
-              className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded ${
+              className={`hidden md:inline-block text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded ${
                 format === 'a4' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
               }`}
             >
@@ -227,27 +247,28 @@ export function ThermalReceipt({ sale, onClose }) {
           <button
             type="button"
             onClick={() => setFormat('thermal')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               format === 'thermal'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Receipt className="w-3.5 h-3.5" />
-            <span>Thermal Slip (80mm)</span>
+            <Receipt className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Thermal (80mm)</span>
           </button>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 justify-end">
+        <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
           {format === 'a4' ? (
             <Button
               variant="primary"
               size="sm"
               onClick={handlePrintA4}
               leftIcon={<Printer className="w-4 h-4" />}
+              className="flex-1 sm:flex-initial"
             >
-              Print A4 Invoice / PDF
+              Print A4 / PDF
             </Button>
           ) : (
             <Button
@@ -255,13 +276,19 @@ export function ThermalReceipt({ sale, onClose }) {
               size="sm"
               onClick={handlePrintThermal}
               leftIcon={<Printer className="w-4 h-4" />}
+              className="flex-1 sm:flex-initial"
             >
               Print 80mm Slip
             </Button>
           )}
 
           {onClose && (
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="shrink-0"
+            >
               Close
             </Button>
           )}
@@ -272,47 +299,45 @@ export function ThermalReceipt({ sale, onClose }) {
       {/* 1. PROFESSIONAL A4 INVOICE VIEW (FULL-COLOR CORPORATE BILL)     */}
       {/* ============================================================== */}
       {format === 'a4' && (
-        <div className="bg-slate-100 dark:bg-slate-900/80 p-2 sm:p-4 rounded-2xl overflow-x-auto">
+        <div className="bg-slate-100 dark:bg-slate-900/80 p-1.5 sm:p-4 rounded-xl sm:rounded-2xl overflow-x-auto -mx-1 sm:mx-0">
           <div
             ref={a4PrintRef}
-            className="a4-bill-sheet bg-white text-slate-800 mx-auto rounded-2xl shadow-xl border border-slate-200/90 p-6 sm:p-8 relative select-none"
+            className="a4-bill-sheet bg-white text-slate-800 mx-auto rounded-xl sm:rounded-2xl shadow-xl border border-slate-200/90 p-3.5 sm:p-8 relative select-none max-w-[820px] w-full"
             style={{
-              maxWidth: '820px',
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             }}
           >
             {/* Top Multi-Color Gradient Brand Accent */}
-            <div
-              className="h-2 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500 rounded-t-xl -mt-6 sm:-mt-8 -mx-6 sm:-mx-8 mb-6"
-              style={{ width: 'calc(100% + 3rem)' }}
-            />
+            <div className="h-1.5 sm:h-2 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500 rounded-t-lg sm:rounded-t-xl -mt-3.5 sm:-mt-8 -mx-3.5 sm:-mx-8 mb-4 sm:mb-6" />
 
             {/* Header: Company Identity & Invoice Header */}
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-6 pb-6 border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6 pb-4 sm:pb-6 border-b border-slate-200">
               {/* Left: Company Details */}
-              <div className="flex items-start gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-md shrink-0">
-                  <Building2 className="w-6 h-6" />
+              <div className="flex items-start gap-2.5 sm:gap-3.5 w-full sm:w-auto">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-md shrink-0">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
                       NEXAPOS
                     </h1>
-                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 tracking-wider">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 tracking-wider">
                       RETAIL ENTERPRISE
                     </span>
                   </div>
-                  <p className="text-[11px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] sm:text-[11px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">
                     Mobile Phones & Consumer Electronics
                   </p>
-                  <div className="text-[11px] text-slate-500 mt-1.5 space-y-0.5">
+                  <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 sm:mt-1.5 space-y-0.5 leading-snug">
                     <p className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{storeSettings.store_address}</span>
+                      <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate sm:whitespace-normal">
+                        {storeSettings.store_address}
+                      </span>
                     </p>
-                    <p className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <p className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
                       <span>
                         Hotline: <strong>{storeSettings.store_phone}</strong>
                       </span>
@@ -321,37 +346,55 @@ export function ThermalReceipt({ sale, onClose }) {
                         WhatsApp: <strong>+94 77 123 4567</strong>
                       </span>
                     </p>
-                    <p className="text-[10px] text-slate-400">
-                      Business Reg: PV-00289192 | VAT Reg: 1049281-7000 | Web: www.nexapos.lk
+                    <p className="text-[9px] sm:text-[10px] text-slate-400">
+                      Reg: PV-00289192 | VAT: 1049281-7000
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Right: Invoice Meta & Status Badge */}
-              <div className="text-left sm:text-right w-full sm:w-auto">
-                <div className="inline-block px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-xs font-black uppercase tracking-wider mb-1.5 shadow-2xs">
-                  TAX INVOICE / CASH BILL
+              {/* Right: Invoice Meta & Status Badge (Responsive Card on Mobile) */}
+              <div className="w-full sm:w-auto bg-gradient-to-r from-blue-50/80 to-indigo-50/50 sm:bg-transparent p-3 sm:p-0 rounded-xl border border-blue-200/80 sm:border-0 text-left sm:text-right">
+                <div className="flex sm:block items-center justify-between gap-2">
+                  <div className="inline-block px-2.5 sm:px-3 py-0.5 sm:py-1 bg-blue-100 sm:bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-2xs">
+                    TAX INVOICE / CASH BILL
+                  </div>
+                  <div className="sm:hidden">
+                    {remaining === 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        PAID
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                        BALANCE DUE
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h2 className="text-xl font-black text-slate-900 font-mono tracking-tight">
+
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 font-mono tracking-tight mt-1 sm:mt-1.5">
                   #{sale.invoiceNumber}
                 </h2>
-                <div className="text-xs text-slate-500 mt-1 font-medium">
-                  Date:{' '}
-                  {new Date(sale.createdAt).toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
+                <div className="text-[11px] sm:text-xs text-slate-500 mt-0.5 font-medium flex sm:block items-center justify-between">
+                  <span>
+                    Date:{' '}
+                    {new Date(sale.createdAt).toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                  <span className="sm:hidden text-slate-400">•</span>
+                  <span>
+                    Time:{' '}
+                    {new Date(sale.createdAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
                 </div>
-                <div className="text-xs text-slate-500">
-                  Time:{' '}
-                  {new Date(sale.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
-                <div className="mt-2.5 flex sm:justify-end">
+                <div className="mt-2 hidden sm:flex sm:justify-end">
                   {remaining === 0 ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -367,66 +410,66 @@ export function ThermalReceipt({ sale, onClose }) {
             </div>
 
             {/* Customer & Transaction Meta (2 Colored Cards) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 my-4 sm:my-6">
               {/* Card 1: Billed To / Customer */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/30 border border-blue-100 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-blue-800 font-bold text-xs uppercase tracking-wider mb-2">
-                  <User className="w-3.5 h-3.5" />
+              <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/30 border border-blue-100 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-blue-800 font-bold text-[11px] sm:text-xs uppercase tracking-wider mb-1.5 sm:mb-2">
+                  <User className="w-3.5 h-3.5 shrink-0" />
                   <span>Billed To (Customer)</span>
                 </div>
-                <div className="text-sm font-bold text-slate-900">
+                <div className="text-xs sm:text-sm font-bold text-slate-900">
                   {sale.customer?.name || 'Walk-in Customer'}
                 </div>
                 {sale.customer?.phone && (
-                  <div className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
-                    <Phone className="w-3 h-3 text-slate-400" />
+                  <div className="text-[11px] sm:text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                     <span>{sale.customer.phone}</span>
                   </div>
                 )}
                 {sale.customer?.email && (
-                  <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-                    <Mail className="w-3 h-3 text-slate-400" />
-                    <span>{sale.customer.email}</span>
+                  <div className="text-[11px] sm:text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
+                    <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{sale.customer.email}</span>
                   </div>
                 )}
                 {sale.customer?.address && (
-                  <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-                    <MapPin className="w-3 h-3 text-slate-400" />
-                    <span>{sale.customer.address}</span>
+                  <div className="text-[11px] sm:text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{sale.customer.address}</span>
                   </div>
                 )}
                 {sale.customer?.nic && (
-                  <div className="text-[11px] text-slate-500 mt-1 font-mono">
+                  <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 font-mono">
                     NIC / ID: {sale.customer.nic}
                   </div>
                 )}
               </div>
 
               {/* Card 2: Transaction Details */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
-                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+              <div className="p-3 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[11px] sm:text-xs uppercase tracking-wider mb-1.5 sm:mb-2">
+                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                   <span>Transaction Metadata</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2.5 text-[11px] sm:text-xs">
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                    <span className="text-slate-400 block text-[9px] sm:text-[10px] uppercase font-semibold">
                       Cashier / Issued By
                     </span>
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-semibold text-slate-800 truncate block">
                       {sale.cashier?.name || 'Authorized Staff'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                    <span className="text-slate-400 block text-[9px] sm:text-[10px] uppercase font-semibold">
                       Store Location
                     </span>
-                    <span className="font-semibold text-slate-800">
-                      Colombo Flagship Store
+                    <span className="font-semibold text-slate-800 truncate block">
+                      Colombo Flagship
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                    <span className="text-slate-400 block text-[9px] sm:text-[10px] uppercase font-semibold">
                       Payment Mode
                     </span>
                     <span className="font-bold text-blue-700 font-mono">
@@ -434,19 +477,109 @@ export function ThermalReceipt({ sale, onClose }) {
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">
-                      Warranty Registration
+                    <span className="text-slate-400 block text-[9px] sm:text-[10px] uppercase font-semibold">
+                      Warranty Status
                     </span>
                     <span className="font-semibold text-emerald-700">
-                      {sale.warranties?.length > 0 ? 'Verified & Active' : 'Store Standard'}
+                      {sale.warranties?.length > 0 ? 'Active & Registered' : 'Standard'}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Itemized Table */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs mb-6">
+            {/* ============================================================== */}
+            {/* MOBILE ITEMS VIEW: Ultra-smooth, crystal-clear cards (<640px) */}
+            {/* ============================================================== */}
+            <div className="mobile-items-card-list sm:hidden space-y-2.5 mb-5">
+              <div className="flex items-center justify-between px-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span>Purchased Items ({sale.items?.length || 0})</span>
+                <span>Amount (LKR)</span>
+              </div>
+              {sale.items?.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="p-3 rounded-xl bg-slate-50/90 border border-slate-200/90 space-y-2 shadow-2xs"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-mono text-slate-400 font-bold">
+                          #{idx + 1}
+                        </span>
+                        <span className="font-bold text-slate-900 text-xs">
+                          {item.product?.name}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {item.product?.brand?.name && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            {item.product.brand.name}
+                          </span>
+                        )}
+                        {item.product?.category?.name && (
+                          <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-slate-200/70 text-slate-700">
+                            {item.product.category.name}
+                          </span>
+                        )}
+                        {item.product?.sku && (
+                          <span className="text-[9px] font-mono text-slate-400">
+                            {item.product.sku}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-xs text-slate-900 block font-mono">
+                        {formatLKR(item.subtotal, false)}
+                      </span>
+                      <span className="text-[9px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block mt-0.5">
+                        12 Mo War.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mobile IMEI Pills */}
+                  {item.devices?.length > 0 && (
+                    <div className="pt-1.5 border-t border-slate-200/70 space-y-1">
+                      {item.devices.map((d, dIdx) => (
+                        <div
+                          key={dIdx}
+                          className="flex items-center justify-between text-[10px] font-mono bg-purple-50 text-purple-900 border border-purple-200 rounded-lg px-2 py-0.5"
+                        >
+                          <span className="font-bold text-purple-700">
+                            IMEI: {d.device?.imei1 || d.imei1}
+                          </span>
+                          {d.device?.storage && (
+                            <span className="text-purple-600 font-semibold">
+                              {d.device.storage} {d.device.color || ''}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Quantity & Unit Price Details */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 font-medium">
+                    <span>
+                      Qty: <strong className="text-slate-800">{item.quantity}</strong> ×{' '}
+                      {formatLKR(item.unitPrice, false)}
+                    </span>
+                    {Number(item.discount || 0) > 0 && (
+                      <span className="text-rose-600 font-semibold">
+                        Disc: -{formatLKR(item.discount, false)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ============================================================== */}
+            {/* DESKTOP & PRINT TABLE VIEW: Executive 7-column table (sm+)     */}
+            {/* ============================================================== */}
+            <div className="desktop-items-table hidden sm:block border border-slate-200 rounded-xl overflow-hidden shadow-2xs mb-6">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider">
@@ -536,18 +669,18 @@ export function ThermalReceipt({ sale, onClose }) {
             </div>
 
             {/* Bottom 2-Column: Left (Payments + Warranty) & Right (Financial Totals) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-start mb-4 sm:mb-6">
               {/* Left Column: Payment Details & Official Warranty Certificate */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {/* Payment Breakdown */}
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-2xs">
-                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wider block border-b border-slate-200 pb-1.5 mb-2 flex items-center justify-between">
+                <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-2xs">
+                  <span className="font-bold text-slate-900 text-[10px] sm:text-[11px] uppercase tracking-wider block border-b border-slate-200 pb-1.5 mb-2 flex items-center justify-between">
                     <span>Payment Settlement</span>
                     <CreditCard className="w-3.5 h-3.5 text-slate-400" />
                   </span>
                   <div className="space-y-1">
                     {sale.payments?.map((p, pIdx) => (
-                      <div key={pIdx} className="flex justify-between text-slate-700">
+                      <div key={pIdx} className="flex justify-between text-slate-700 text-[11px] sm:text-xs">
                         <span>
                           {p.method}{' '}
                           {p.cardLastFour ? `(ending *${p.cardLastFour})` : ''}{' '}
@@ -558,12 +691,12 @@ export function ThermalReceipt({ sale, onClose }) {
                         </span>
                       </div>
                     ))}
-                    <div className="flex justify-between font-bold text-slate-900 pt-1.5 border-t border-slate-200">
+                    <div className="flex justify-between font-bold text-slate-900 pt-1.5 border-t border-slate-200 text-[11px] sm:text-xs">
                       <span>Total Tendered:</span>
                       <span className="font-mono">{formatLKR(paid, false)}</span>
                     </div>
                     {change > 0 && (
-                      <div className="flex justify-between text-emerald-700 font-semibold text-[11px]">
+                      <div className="flex justify-between text-emerald-700 font-semibold text-[10px] sm:text-[11px]">
                         <span>Change Returned:</span>
                         <span className="font-mono">{formatLKR(change, false)}</span>
                       </div>
@@ -573,36 +706,36 @@ export function ThermalReceipt({ sale, onClose }) {
 
                 {/* Warranty Registration Certificate Box */}
                 {sale.warranties && sale.warranties.length > 0 && (
-                  <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs shadow-2xs">
-                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[11px] uppercase tracking-wider mb-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider mb-2">
+                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
                       <span>Official Warranty Certificate Registration</span>
                     </div>
                     <div className="space-y-1.5">
                       {sale.warranties.map((w, wIdx) => (
                         <div
                           key={wIdx}
-                          className="bg-white/90 rounded-lg p-2.5 border border-emerald-200 shadow-2xs"
+                          className="bg-white/90 rounded-lg p-2 sm:p-2.5 border border-emerald-200 shadow-2xs"
                         >
-                          <div className="flex justify-between font-bold text-slate-900 text-[11px]">
+                          <div className="flex justify-between font-bold text-slate-900 text-[10px] sm:text-[11px]">
                             <span className="font-mono text-emerald-700">
                               CERT: {w.warrantyCode}
                             </span>
-                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold">
+                            <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-extrabold">
                               ACTIVE
                             </span>
                           </div>
-                          <div className="text-[10.5px] text-slate-600 mt-1 flex justify-between">
+                          <div className="text-[10px] sm:text-[10.5px] text-slate-600 mt-1 flex justify-between">
                             <span>Coverage: 12 Months Hardware</span>
                             <span>
-                              Valid Until:{' '}
+                              Valid:{' '}
                               <strong>
                                 {new Date(w.endDate).toLocaleDateString('en-GB')}
                               </strong>
                             </span>
                           </div>
                           {w.terms && (
-                            <div className="text-[9.5px] text-slate-500 mt-0.5 truncate">
+                            <div className="text-[9px] sm:text-[9.5px] text-slate-500 mt-0.5 truncate">
                               {w.terms}
                             </div>
                           )}
@@ -614,15 +747,15 @@ export function ThermalReceipt({ sale, onClose }) {
               </div>
 
               {/* Right Column: Financial Summary Card */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-slate-50 border border-blue-200 shadow-2xs text-xs space-y-2.5">
-                <div className="flex justify-between text-slate-600 font-medium">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-slate-50 border border-blue-200 shadow-2xs text-xs space-y-2 sm:space-y-2.5">
+                <div className="flex justify-between text-slate-600 font-medium text-[11px] sm:text-xs">
                   <span>Subtotal (Gross):</span>
                   <span className="font-mono font-semibold text-slate-900">
                     {formatLKR(subtotal, false)}
                   </span>
                 </div>
                 {discount > 0 && (
-                  <div className="flex justify-between text-rose-600 font-medium">
+                  <div className="flex justify-between text-rose-600 font-medium text-[11px] sm:text-xs">
                     <span>Invoice Discount:</span>
                     <span className="font-mono font-semibold">
                       -{formatLKR(discount, false)}
@@ -630,7 +763,7 @@ export function ThermalReceipt({ sale, onClose }) {
                   </div>
                 )}
                 {tax > 0 && (
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-slate-600 text-[11px] sm:text-xs">
                     <span>VAT / Tax:</span>
                     <span className="font-mono font-semibold text-slate-900">
                       {formatLKR(tax, false)}
@@ -639,30 +772,30 @@ export function ThermalReceipt({ sale, onClose }) {
                 )}
 
                 {/* Big Net Amount Banner */}
-                <div className="pt-2.5 border-t-2 border-blue-200">
+                <div className="pt-2 sm:pt-2.5 border-t-2 border-blue-200">
                   <div className="flex justify-between items-baseline">
-                    <span className="text-xs font-black uppercase text-blue-900 tracking-wider">
+                    <span className="text-[11px] sm:text-xs font-black uppercase text-blue-900 tracking-wider">
                       Net Total (LKR)
                     </span>
-                    <span className="text-2xl font-black text-blue-600 font-mono tracking-tight">
+                    <span className="text-xl sm:text-2xl font-black text-blue-600 font-mono tracking-tight">
                       Rs. {total.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-1.5 border-t border-blue-100 flex justify-between text-[11px] text-slate-600">
+                <div className="pt-1.5 border-t border-blue-100 flex justify-between text-[10px] sm:text-[11px] text-slate-600">
                   <span>Amount Paid:</span>
                   <span className="font-bold text-emerald-700 font-mono">
                     {formatLKR(paid, false)}
                   </span>
                 </div>
                 {remaining > 0 ? (
-                  <div className="flex justify-between text-[11px] font-bold text-rose-700">
+                  <div className="flex justify-between text-[10px] sm:text-[11px] font-bold text-rose-700">
                     <span>Balance Remaining:</span>
                     <span className="font-mono">{formatLKR(remaining, false)}</span>
                   </div>
                 ) : (
-                  <div className="flex justify-between text-[11px] font-bold text-emerald-700">
+                  <div className="flex justify-between text-[10px] sm:text-[11px] font-bold text-emerald-700">
                     <span>Balance Remaining:</span>
                     <span>Rs. 0.00 (Fully Settled)</span>
                   </div>
@@ -670,43 +803,43 @@ export function ThermalReceipt({ sale, onClose }) {
               </div>
             </div>
 
-            {/* Official Signature Lines */}
-            <div className="grid grid-cols-2 gap-8 my-6 pt-4 border-t border-slate-200 text-xs">
+            {/* Official Signature Lines (Stacked on mobile, side-by-side on desktop) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 my-4 sm:my-6 pt-4 border-t border-slate-200 text-xs">
               <div className="text-center">
-                <div className="h-10 flex items-end justify-center">
-                  <div className="w-48 border-b border-dashed border-slate-400"></div>
+                <div className="h-8 sm:h-10 flex items-end justify-center">
+                  <div className="w-44 sm:w-48 border-b border-dashed border-slate-400"></div>
                 </div>
-                <p className="mt-1 font-bold text-slate-800 text-[11px]">
+                <p className="mt-1 font-bold text-slate-800 text-[10px] sm:text-[11px]">
                   Authorized Store Signature & Stamp
                 </p>
-                <p className="text-[10px] text-slate-400 font-medium">
+                <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium">
                   For NexaPOS Electronics (Pvt) Ltd
                 </p>
               </div>
               <div className="text-center">
-                <div className="h-10 flex items-end justify-center">
-                  <div className="w-48 border-b border-dashed border-slate-400"></div>
+                <div className="h-8 sm:h-10 flex items-end justify-center">
+                  <div className="w-44 sm:w-48 border-b border-dashed border-slate-400"></div>
                 </div>
-                <p className="mt-1 font-bold text-slate-800 text-[11px]">
+                <p className="mt-1 font-bold text-slate-800 text-[10px] sm:text-[11px]">
                   Customer Acceptance Signature
                 </p>
-                <p className="text-[10px] text-slate-400 font-medium">
+                <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium">
                   Received in sound order with warranty terms
                 </p>
               </div>
             </div>
 
             {/* Official Terms & Conditions Footer */}
-            <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-[10px] text-slate-500">
+            <div className="pt-3 sm:pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 text-[9.5px] sm:text-[10px] text-slate-500 text-center sm:text-left">
               <div className="space-y-0.5 leading-relaxed max-w-lg">
-                <p className="font-bold text-slate-700 uppercase tracking-wider text-[9px]">
+                <p className="font-bold text-slate-700 uppercase tracking-wider text-[8.5px] sm:text-[9px]">
                   Store Policy & Warranty Terms:
                 </p>
                 <p>
-                  1. Please preserve this original Tax Invoice for all hardware warranty claims and authorized service.
+                  1. Please preserve this original Tax Invoice for all hardware warranty claims.
                 </p>
                 <p>
-                  2. Hardware warranty strictly covers manufacturer defects. Physical, water/liquid, and electrical surge damage void all warranty.
+                  2. Hardware warranty covers manufacturing defects. Physical, water, and surge damages void warranty.
                 </p>
                 <p>
                   3. Accessories eligible for exchange within 3 days in unsealed box. Activated devices cannot be returned.
@@ -714,8 +847,8 @@ export function ThermalReceipt({ sale, onClose }) {
               </div>
 
               {/* Barcode representation */}
-              <div className="text-left sm:text-right shrink-0">
-                <div className="font-mono text-xs tracking-widest bg-slate-100 px-3 py-1 rounded border border-slate-200 font-bold text-slate-700">
+              <div className="text-center sm:text-right shrink-0">
+                <div className="font-mono text-xs tracking-widest bg-slate-100 px-3 py-1 rounded border border-slate-200 font-bold text-slate-700 inline-block">
                   |||| | ||||| || |||||| | ||||
                 </div>
                 <span className="font-mono text-[9px] text-slate-400 mt-1 block">
@@ -731,7 +864,7 @@ export function ThermalReceipt({ sale, onClose }) {
       {/* 2. COMPACT 80MM THERMAL RECEIPT VIEW (SLIP PRINTER)            */}
       {/* ============================================================== */}
       {format === 'thermal' && (
-        <div className="max-w-[340px] mx-auto bg-white p-5 rounded-xl shadow-lg border border-slate-200 text-black font-mono text-[11px] leading-tight select-none">
+        <div className="max-w-[340px] w-full mx-auto bg-white p-4 sm:p-5 rounded-xl shadow-lg border border-slate-200 text-black font-mono text-[11px] leading-tight select-none">
           <div ref={thermalPrintRef}>
             {/* Shop Header */}
             <div className="text-center pb-2 border-b border-dashed border-black">

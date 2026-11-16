@@ -29,7 +29,7 @@ export async function getPOSCatalog(filters = {}) {
     where,
     include: {
       category: { select: { id: true, name: true } },
-      brand: { select: { id: true, name: true } },
+      brand: { select: { id: true, name: true, country: true, logoUrl: true } },
       variants: true,
       images: { orderBy: { isPrimary: 'desc' }, take: 1 },
       inventory: true,
@@ -51,7 +51,7 @@ export async function getPOSCatalog(filters = {}) {
   })
 
   return products.map((p) => {
-    const inv = p.inventory[0] || { quantity: 0, location: 'Store Floor' }
+    const inv = p.inventory[0] || { quantity: 0, location: 'Store Floor', reorderLevel: 5 }
     const availableDevices = p.devices || []
     const availableStock = p.isSerialized ? availableDevices.length : inv.quantity
 
@@ -60,10 +60,15 @@ export async function getPOSCatalog(filters = {}) {
       name: p.name,
       sku: p.sku,
       barcode: p.barcode,
+      description: p.description || '',
       category: p.category?.name || 'Uncategorized',
       categoryId: p.categoryId,
       brand: p.brand?.name || 'N/A',
       brandId: p.brandId,
+      brandCountry: p.brand?.country || 'International',
+      brandLogo: p.brand?.logoUrl || null,
+      location: inv.location || 'Store Floor',
+      reorderLevel: inv.reorderLevel || 5,
       isSerialized: p.isSerialized,
       costPrice: Number(p.costPrice),
       retailPrice: Number(p.retailPrice),
