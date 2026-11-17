@@ -18,21 +18,36 @@ import {
   Store,
   Sparkles,
   X,
+  Send,
+  MessageSquare,
+  Copy,
+  Check,
+  ExternalLink,
+  AlertCircle,
+  PhoneCall,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { formatLKR } from '@/utils/currency'
-import { settingsAPI } from '@/services/api'
+import { settingsAPI, posAPI } from '@/services/api'
 
 export function ThermalReceipt({ sale, onClose }) {
   const [format, setFormat] = useState('a4') // 'a4' (default full-color bill) or 'thermal' (80mm roll)
   const [storeSettings, setStoreSettings] = useState({
     store_name: 'NexaPOS Mobile & Electronics (Pvt) Ltd',
     store_address: 'No. 142, Galle Road, Colombo 03, Sri Lanka',
-    store_phone: '+94 11 234 5678',
+    store_phone: '0713857835',
     store_email: 'sales@nexapos.lk',
     receipt_footer_note:
       'Thank you for choosing NexaPOS! Please preserve this invoice for all warranty claims.',
   })
+
+  // Customer SMS / Digital Bill State
+  const [recipientPhone, setRecipientPhone] = useState(sale?.customer?.phone || '')
+  const [isSendingSMS, setIsSendingSMS] = useState(false)
+  const [smsDispatchResult, setSmsDispatchResult] = useState(null)
+  const [smsError, setSmsError] = useState('')
+  const [isCopied, setIsCopied] = useState(false)
+  const [showMsgPreview, setShowMsgPreview] = useState(false)
 
   const a4PrintRef = useRef(null)
   const thermalPrintRef = useRef(null)
@@ -70,6 +85,122 @@ export function ThermalReceipt({ sale, onClose }) {
   const paid = Number(sale.paidAmount) || 0
   const change = Number(sale.changeAmount) || 0
   const remaining = Math.max(0, total - paid)
+
+  const companyHotline = storeSettings.store_phone || '0713857835'
+  const customerName = sale.customer?.name || 'Walk-in Customer'
+  const customerPhone = recipientPhone || sale.customer?.phone || ''
+  const customerNic = sale.customer?.nic || ''
+
+  // Format clean Sri Lankan digits for WhatsApp (e.g. 0713857835 -> 94713857835)
+  const getCleanSriLankanDigits = (phone) => {
+    if (!phone) return ''
+    let d = String(phone).replace(/[^0-9]/g, '')
+    if (d.startsWith('0') && d.length === 10) {
+      return '94' + d.slice(1)
+    }
+    if (d.startsWith('94') && d.length === 11) {
+      return d
+    }
+    if (d.length === 9 && d.startsWith('7')) {
+      return '94' + d
+    }
+    return d
+  }
+
+  // Build the message text
+  const generateBillMessage = () => {
+    const invNumber = sale.invoiceNumber || 'INV'
+    const dateStr = sale.createdAt
+      ? new Date(sale.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : new Date().toLocaleDateString('en-GB')
+    const timeStr = sale.createdAt
+      ? new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : ''
+
+    const itemsSummary = (sale.items || [])
+      .map((item, idx) => {
+        const pName = item.product?.name || 'Item'
+        const imeis = (item.devices || [])
+          .map((d) => d.device?.imei1 || d.imei1)
+          .filter(Boolean)
+        const imeiStr = imeis.length > 0 ? ` (IMEI: ${imeis.join(', ')})` : ''
+        return `${idx + 1}. ${pName} x${item.quantity}${imeiStr} - ${formatLKR(item.subtotal, false)}`
+      })
+      .join('\n')
+
+    const warranties = (sale.warranties || [])
+      .map((w) => `${w.warrantyCode} (Valid: ${new Date(w.endDate).toLocaleDateString('en-GB')})`)
+      .join(', ')
+
+    let msg = `🌟 *NexaPOS Mobile & Electronics*\n`
+    msg += `📞 Official Hotline: ${companyHotline}\n`
+    msg += `--------------------------------\n`
+    msg += `Dear ${customerName},\n`
+    msg += `Thank you for your purchase at NexaPOS!\n\n`
+    msg += `🧾 *Invoice:* #${invNumber}\n`
+    msg += `📅 *Date:* ${dateStr} ${timeStr}\n`
+    if (itemsSummary) {
+      msg += `📦 *Purchased Items:*\n${itemsSummary}\n`
+    }
+    msg += `💳 *Total Amount:* ${formatLKR(sale.totalAmount, false)} [${sale.payments?.map((p) => p.method).join(', ') || 'CASH'} - PAID]\n`
+    if (warranties) {
+      msg += `🛡️ *Warranty Registration:* ${warranties}\n`
+    }
+    if (customerNic) {
+      msg += `🆔 *Customer NIC:* ${customerNic}\n`
+    }
+    msg += `--------------------------------\n`
+    msg += `Please retain this digital receipt for all manufacturer warranty claims.\n`
+    msg += `Support & Inquiries: ${companyHotline}`
+    return msg
+  }
+
+  const handleCopyMessage = async () => {
+    try {
+      const msg = generateBillMessage()
+      await navigator.clipboard.writeText(msg)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 3000)
+    } catch {
+      alert('Failed to copy to clipboard.')
+    }
+  }
+
+  const handleSendNativeSMS = () => {
+    if (!customerPhone) {
+      setSmsError('Please enter a valid customer phone number (e.g. 0713857835 or 0771234567).')
+      return
+    }
+    setSmsError('')
+    const msg = generateBillMessage()
+    const url = `sms:${customerPhone}?body=${encodeURIComponent(msg)}`
+    window.location.href = url
+  }
+
+  const handleDispatchSystemSMS = async () => {
+    if (!customerPhone) {
+      setSmsError('Please enter a customer mobile number to send the SMS.')
+      return
+    }
+    setSmsError('')
+    setIsSendingSMS(true)
+    setSmsDispatchResult(null)
+    try {
+      const msg = generateBillMessage()
+      const res = await posAPI.dispatchSMS({
+        saleId: sale.id,
+        invoiceNumber: sale.invoiceNumber,
+        recipientPhone: customerPhone,
+        customerName: customerName,
+        customMessage: msg,
+      })
+      setSmsDispatchResult(res.data?.data)
+    } catch (err) {
+      setSmsError(err.response?.data?.error?.message || 'Failed to dispatch SMS.')
+    } finally {
+      setIsSendingSMS(false)
+    }
+  }
 
   // Print A4 Professional Invoice
   const handlePrintA4 = () => {
@@ -297,6 +428,154 @@ export function ThermalReceipt({ sale, onClose }) {
       </div>
 
       {/* ============================================================== */}
+      {/* DIGITAL BILL & SMS DISPATCH HUB                                */}
+      {/* ============================================================== */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 dark:from-dark-surface dark:to-dark-card border border-blue-200 dark:border-dark-border rounded-xl p-3 sm:p-4 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100 dark:border-dark-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                  Customer Digital Bill & SMS Hub
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Dispatch
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Official store hotline sender: <strong className="text-blue-700 dark:text-blue-400 font-mono">{companyHotline}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 self-start sm:self-auto text-[11px] text-slate-600 dark:text-slate-400 bg-white/80 dark:bg-dark-surface px-2.5 py-1 rounded-lg border border-slate-200 dark:border-dark-border">
+            <span>Customer:</span>
+            <strong className="text-slate-900 dark:text-white">{customerName}</strong>
+            {customerNic && (
+              <span className="text-[10px] bg-slate-100 dark:bg-dark-card text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-mono">
+                NIC: {customerNic}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Recipient Phone & Action Toolbar */}
+        <div className="mt-3 flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+          <div className="flex-1 flex items-center gap-2">
+            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 shrink-0">
+              Recipient Mobile:
+            </label>
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={recipientPhone}
+                onChange={(e) => {
+                  setRecipientPhone(e.target.value)
+                  setSmsError('')
+                }}
+                placeholder="e.g. 0713857835 or 0771234567"
+                className="w-full px-2.5 py-1.5 text-xs font-mono rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* 1. Send Normal SMS to Mobile */}
+            <button
+              type="button"
+              onClick={handleDispatchSystemSMS}
+              disabled={isSendingSMS}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-xs flex items-center gap-1.5 transition-all"
+              title="Send official SMS directly to customer mobile number from store hotline 0713857835"
+            >
+              {isSendingSMS ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              <span>Send Normal SMS</span>
+            </button>
+
+            {/* 2. Real Native Phone SMS Link */}
+            <button
+              type="button"
+              onClick={handleSendNativeSMS}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white shadow-xs flex items-center gap-1.5 transition-all"
+              title="Open device native SMS text app"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Open Phone SMS</span>
+            </button>
+
+            {/* 3. Copy SMS Message Text */}
+            <button
+              type="button"
+              onClick={handleCopyMessage}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-dark-surface hover:bg-slate-50 border border-slate-300 dark:border-dark-border text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-all"
+              title="Copy SMS text to clipboard"
+            >
+              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{isCopied ? 'Copied!' : 'Copy SMS Text'}</span>
+            </button>
+
+            {/* 4. Toggle Preview */}
+            <button
+              type="button"
+              onClick={() => setShowMsgPreview((prev) => !prev)}
+              className="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              {showMsgPreview ? 'Hide Preview' : 'Preview SMS'}
+            </button>
+          </div>
+        </div>
+
+        {/* Delivery Error Notice */}
+        {smsError && (
+          <div className="mt-2 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-200 dark:border-rose-900 flex items-center gap-1.5">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{smsError}</span>
+          </div>
+        )}
+
+        {/* Real Delivery Confirmation Banner */}
+        {smsDispatchResult && (
+          <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
+            <div className="flex items-center justify-between font-bold">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                SMS Dispatched & Recorded Successfully!
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 font-mono uppercase">
+                {smsDispatchResult.deliveryStatus || 'DELIVERED'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mt-1 text-[11px] text-emerald-800 dark:text-emerald-300">
+              <div>
+                Sender: <strong className="font-mono">{smsDispatchResult.sender?.phone}</strong> (Store Line)
+              </div>
+              <div>
+                Recipient: <strong className="font-mono">{smsDispatchResult.recipient?.international}</strong> ({smsDispatchResult.carrierNetwork})
+              </div>
+              <div className="truncate font-mono">
+                Msg ID: {smsDispatchResult.messageId}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Message Preview Box */}
+        {showMsgPreview && (
+          <div className="mt-2.5 p-2.5 bg-white dark:bg-dark-surface rounded-lg border border-slate-200 dark:border-dark-border text-slate-800 dark:text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed shadow-2xs">
+            {generateBillMessage()}
+          </div>
+        )}
+      </div>
+
+      {/* ============================================================== */}
       {/* 1. PROFESSIONAL A4 INVOICE VIEW (FULL-COLOR CORPORATE BILL)     */}
       {/* ============================================================== */}
       {format === 'a4' && (
@@ -340,11 +619,11 @@ export function ThermalReceipt({ sale, onClose }) {
                     <p className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                       <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
                       <span>
-                        Hotline: <strong>{storeSettings.store_phone}</strong>
+                        Hotline: <strong>{storeSettings.store_phone || '0713857835'}</strong>
                       </span>
                       <span>•</span>
                       <span>
-                        WhatsApp: <strong>+94 77 123 4567</strong>
+                        SMS Support: <strong>0713857835</strong>
                       </span>
                     </p>
                     <p className="text-[9px] sm:text-[10px] text-slate-400">
@@ -877,7 +1156,7 @@ export function ThermalReceipt({ sale, onClose }) {
               </p>
               <p className="text-[9px] mt-1 text-slate-700">{storeSettings.store_address}</p>
               <p className="text-[9px] text-slate-700">
-                Tel: {storeSettings.store_phone} | WhatsApp: +94 77 123 4567
+                Hotline / SMS: {storeSettings.store_phone || '0713857835'}
               </p>
               <p className="text-[9px] text-slate-700">Reg: PV-00289192 | VAT: 1049281-7000</p>
             </div>
@@ -902,6 +1181,12 @@ export function ThermalReceipt({ sale, onClose }) {
                 <span>CUSTOMER: {sale.customer?.name || 'Walk-in Customer'}</span>
                 <span>{sale.customer?.phone || ''}</span>
               </div>
+              {sale.customer?.nic && (
+                <div className="flex justify-between text-[9px] text-slate-800 font-bold">
+                  <span>CUSTOMER NIC:</span>
+                  <span>{sale.customer.nic}</span>
+                </div>
+              )}
             </div>
 
             {/* Items Header */}

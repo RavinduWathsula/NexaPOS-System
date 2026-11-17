@@ -7,11 +7,12 @@ import {
   getSales,
   postQuickCustomer,
   getCustomers,
+  postDispatchSMS,
 } from '../controllers/pos.controller.js'
 import { authenticateJWT } from '../middleware/auth.js'
 import { authorizeRoles } from '../middleware/rbac.js'
 import { validateRequest } from '../middleware/validate.js'
-import { createSaleSchema, quickCustomerSchema } from '../validators/pos.validator.js'
+import { createSaleSchema, quickCustomerSchema, dispatchSmsSchema } from '../validators/pos.validator.js'
 
 const router = Router()
 
@@ -42,6 +43,14 @@ router.post(
   authorizeRoles('SUPER_ADMIN', 'MANAGER', 'CASHIER'),
   validateRequest({ body: quickCustomerSchema }),
   postQuickCustomer
+)
+
+// Dispatch Customer Digital Receipt Message / SMS
+router.post(
+  '/dispatch-sms',
+  authorizeRoles('SUPER_ADMIN', 'MANAGER', 'CASHIER'),
+  validateRequest({ body: dispatchSmsSchema }),
+  postDispatchSMS
 )
 
 export default router

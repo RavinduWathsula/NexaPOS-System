@@ -36,3 +36,11 @@ export const quickCustomerSchema = z.object({
   address: z.string().optional(),
 })
 
+export const dispatchSmsSchema = z.object({
+  saleId: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  recipientPhone: z.string({ required_error: 'Recipient phone number is required' }).min(7, 'Phone number is too short'),
+  customerName: z.string().optional(),
+  customMessage: z.string().optional(),
+})
+

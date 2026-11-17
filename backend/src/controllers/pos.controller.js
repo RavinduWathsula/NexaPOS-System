@@ -7,6 +7,7 @@ import {
   quickCreateCustomer,
   listCustomers,
 } from '../services/pos.service.js'
+import { dispatchBillSMS } from '../services/sms.service.js'
 import { successResponse } from '../utils/apiResponse.js'
 
 export async function getCustomers(req, res, next) {
@@ -71,3 +72,16 @@ export async function postQuickCustomer(req, res, next) {
     next(error)
   }
 }
+
+export async function postDispatchSMS(req, res, next) {
+  try {
+    const result = await dispatchBillSMS({
+      ...req.body,
+      performedById: req.user?.id,
+    })
+    return successResponse(res, result, 'Message dispatched successfully.')
+  } catch (error) {
+    next(error)
+  }
+}
+

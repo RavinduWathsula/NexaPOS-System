@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap,
@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
@@ -33,6 +34,28 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState('')
+
+  // Anti-autofill focus states
+  const [isEmailFocused, setIsEmailFocused] = useState(false)
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false)
+
+  // Force clean state on mount to prevent browser autofill injection
+  useEffect(() => {
+    setEmail('')
+    setPassword('')
+    const t1 = setTimeout(() => {
+      setEmail('')
+      setPassword('')
+    }, 50)
+    const t2 = setTimeout(() => {
+      setEmail('')
+      setPassword('')
+    }, 250)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [])
 
   // Forgot password modal state
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false)
@@ -189,7 +212,7 @@ export function Login() {
         </div>
       </div>
 
-      {/* Right Column: Login Form & Role Presets */}
+      {/* Right Column: Login Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
         <div className="w-full max-w-md mx-auto space-y-8">
           <div>
@@ -197,7 +220,7 @@ export function Login() {
               Sign in to your terminal
             </h1>
             <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Enter your staff credentials or select a role preset below to test.
+              Enter your staff credentials to access your terminal session.
             </p>
           </div>
 
@@ -207,20 +230,61 @@ export function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Staff Email Address"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. admin@nexapos.lk"
-              leftIcon={<Mail className="w-4 h-4" />}
-              required
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" noValidate>
+            {/* Decoy inputs to intercept Chrome password manager autofill */}
+            <input
+              type="text"
+              name="prevent_autofill_username"
+              tabIndex="-1"
+              aria-hidden="true"
+              style={{ display: 'none' }}
+              autoComplete="off"
             />
+            <input
+              type="password"
+              name="prevent_autofill_password"
+              tabIndex="-1"
+              aria-hidden="true"
+              style={{ display: 'none' }}
+              autoComplete="off"
+            />
+
+            <div className="relative">
+              <Input
+                label="Staff Email Address"
+                type="text"
+                inputMode="email"
+                name="pos_terminal_user"
+                id="pos_terminal_user"
+                autoComplete="one-time-code"
+                readOnly={!isEmailFocused}
+                onFocus={() => setIsEmailFocused(true)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. admin@nexapos.lk"
+                leftIcon={<Mail className="w-4 h-4" />}
+                required
+              />
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => setEmail('')}
+                  className="absolute right-3 top-8 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                  title="Clear email"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
             <Input
               label="Password"
               type={showPassword ? 'text' : 'password'}
+              name="pos_terminal_secret"
+              id="pos_terminal_secret"
+              autoComplete="new-password"
+              readOnly={!isPasswordFocused}
+              onFocus={() => setIsPasswordFocused(true)}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"

@@ -149,6 +149,7 @@ export const posAPI = {
   checkout: (data) => api.post('/pos/checkout', data),
   receipt: (idOrInvoice) => api.get(`/pos/receipt/${idOrInvoice}`),
   sales: (params) => api.get('/pos/sales', { params }),
+  dispatchSMS: (data) => api.post('/pos/dispatch-sms', data),
 }
 
 export const customersAPI = {

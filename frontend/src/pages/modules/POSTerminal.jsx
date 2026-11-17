@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Smartphone,
   Search,
@@ -11,6 +11,9 @@ import {
   Banknote,
   Split,
   User,
+  UserPlus,
+  Phone,
+  RefreshCw,
   CheckCircle2,
   X,
   Receipt,
@@ -61,8 +64,25 @@ export function POSTerminal() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [customers, setCustomers] = useState([])
   const [customerSearch, setCustomerSearch] = useState('')
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false)
+  const customerDropdownRef = useRef(null)
   const [invoiceDiscount, setInvoiceDiscount] = useState(0)
   const [invoiceTax, setInvoiceTax] = useState(0)
+
+  // Filtered customer list for instant search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers.slice(0, 10)
+    const q = customerSearch.toLowerCase().trim()
+    return customers
+      .filter(
+        (c) =>
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q)) ||
+          (c.nic && c.nic.toLowerCase().includes(q)) ||
+          (c.email && c.email.toLowerCase().includes(q))
+      )
+      .slice(0, 10)
+  }, [customers, customerSearch])
 
   // Product Details Modal State
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
@@ -139,6 +159,16 @@ export function POSTerminal() {
 
   useEffect(() => {
     fetchAux()
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target)) {
+        setIsCustomerDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   useEffect(() => {
@@ -529,6 +559,10 @@ export function POSTerminal() {
   // Quick Customer Registration
   const handleQuickCustomerSubmit = async (e) => {
     e.preventDefault()
+    if (!custName.trim() || !custPhone.trim()) {
+      showToast('Customer name and phone number are required')
+      return
+    }
     setCustSubmitting(true)
     try {
       const res = await posAPI.quickCustomer({
@@ -539,13 +573,20 @@ export function POSTerminal() {
         address: custAddress.trim() || undefined,
       })
       const newCust = res.data?.data
+      // Add to customers state list so it's immediately cached and visible
+      setCustomers((prev) => [newCust, ...prev.filter((c) => c.id !== newCust.id)])
       setSelectedCustomer(newCust)
       setIsCustomerModalOpen(false)
+      setIsCustomerDropdownOpen(false)
       setCustName('')
       setCustPhone('')
-      showToast(`Customer ${newCust.name} selected`)
+      setCustEmail('')
+      setCustNic('')
+      setCustAddress('')
+      setCustomerSearch('')
+      showToast(`Customer ${newCust.name} (${newCust.phone}) linked to active bill`)
     } catch (err) {
-      alert(err.response?.data?.error?.message || 'Failed to create customer.')
+      showToast(err.response?.data?.error?.message || 'Failed to create customer.')
     } finally {
       setCustSubmitting(false)
     }
@@ -798,49 +839,235 @@ export function POSTerminal() {
 
         {/* RIGHT COLUMN: Shopping Cart & Checkout (4 cols on lg) */}
         <div className="lg:col-span-4 flex flex-col bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0 shadow-sm">
-          {/* Customer Selection */}
+          {/* Customer Selection & Profile Hub */}
           <div className="pb-3 border-b border-slate-100 dark:border-dark-border shrink-0">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-brand-600" />
-                Customer
+                Customer & Digital Bill
               </span>
-              <button
-                type="button"
-                onClick={() => setIsCustomerModalOpen(true)}
-                className="text-[10px] font-bold text-brand-600 hover:underline"
-              >
-                + Quick Add
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <select
-                value={selectedCustomer ? selectedCustomer.id : ''}
-                onChange={(e) => {
-                  const found = customers.find((c) => c.id === e.target.value)
-                  setSelectedCustomer(found || null)
-                }}
-                className="flex-1 px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
-              >
-                <option value="">Walk-in Customer (Cash)</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone})
-                  </option>
-                ))}
-              </select>
-              {selectedCustomer && (
+              {selectedCustomer ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Linked to Invoice
+                </span>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setSelectedCustomer(null)}
-                  className="p-1 text-slate-400 hover:text-rose-500 rounded-lg"
-                  title="Remove customer"
+                  onClick={() => {
+                    if (customerSearch) {
+                      const isDigits = /^\d+$/.test(customerSearch.trim())
+                      if (isDigits) {
+                        setCustPhone(customerSearch.trim())
+                        setCustName('')
+                      } else {
+                        setCustName(customerSearch.trim())
+                        setCustPhone('')
+                      }
+                    }
+                    setIsCustomerModalOpen(true)
+                  }}
+                  className="text-[10px] font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
                 >
-                  <X className="w-4 h-4" />
+                  <UserPlus className="w-3 h-3" />
+                  + New Customer
                 </button>
               )}
             </div>
+
+            {selectedCustomer ? (
+              /* SELECTED CUSTOMER PROFILE CARD */
+              <div className="p-2.5 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/60 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/60 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                      {selectedCustomer.name
+                        ? selectedCustomer.name
+                            .split(' ')
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase()
+                        : 'CU'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {selectedCustomer.name}
+                        </span>
+                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          {selectedCustomer.loyaltyTier || 'STANDARD'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          <strong className="font-mono text-slate-800 dark:text-slate-200">
+                            {selectedCustomer.phone}
+                          </strong>
+                        </span>
+                        <span>•</span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                          SMS Active
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomer(null)
+                        setCustomerSearch('')
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-dark-surface transition-colors"
+                      title="Switch to Walk-in customer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-2">
+                    {selectedCustomer.nic ? (
+                      <span className="px-1.5 py-0.5 rounded bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border font-mono font-semibold text-slate-700 dark:text-slate-300">
+                        NIC: {selectedCustomer.nic}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-500 italic">
+                        No NIC provided (Walk-in)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-blue-600 dark:text-blue-400 font-medium">
+                    Hotline: 0713857835
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* CUSTOMER SEARCH & SELECTION (WALK-IN MODE) */
+              <div className="relative" ref={customerDropdownRef}>
+                <div className="relative flex items-center">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value)
+                      setIsCustomerDropdownOpen(true)
+                    }}
+                    onFocus={() => setIsCustomerDropdownOpen(true)}
+                    placeholder="Search phone (07X...), name, or NIC..."
+                    className="w-full pl-8 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  {customerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomerSearch('')}
+                      className="absolute right-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Floating Customer Suggestions Dropdown */}
+                {isCustomerDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-xl shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                    {/* Default Walk-in Option */}
+                    <div
+                      onClick={() => {
+                        setSelectedCustomer(null)
+                        setIsCustomerDropdownOpen(false)
+                      }}
+                      className="p-2 border-b border-slate-100 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-dark-surface cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-dark-surface flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          WI
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                            Walk-in Customer (Cash)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            No registered details required
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Default</span>
+                    </div>
+
+                    {/* Filtered Customer Matches */}
+                    {filteredCustomers.length > 0 ? (
+                      filteredCustomers.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedCustomer(c)
+                            setIsCustomerDropdownOpen(false)
+                            setCustomerSearch('')
+                            showToast(`Selected customer ${c.name}`)
+                          }}
+                          className="p-2 border-b border-slate-100 dark:border-dark-border hover:bg-blue-50/60 dark:hover:bg-blue-950/30 cursor-pointer flex items-center justify-between transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 flex items-center justify-center text-[11px] font-extrabold shrink-0">
+                              {c.name ? c.name[0].toUpperCase() : 'C'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {c.name}
+                                </span>
+                                {c.nic && (
+                                  <span className="text-[9px] bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-300 px-1 rounded font-mono">
+                                    {c.nic}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 block">
+                                {c.phone}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 shrink-0">
+                            Select
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          No customer found matching "{customerSearch}"
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const isDigits = /^\d+$/.test(customerSearch.trim())
+                            if (isDigits) {
+                              setCustPhone(customerSearch.trim())
+                              setCustName('')
+                            } else {
+                              setCustName(customerSearch.trim())
+                              setCustPhone('')
+                            }
+                            setIsCustomerDropdownOpen(false)
+                            setIsCustomerModalOpen(true)
+                          }}
+                          className="mt-2 text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          Register "{customerSearch}" as New Customer
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Cart Items List */}
@@ -1504,50 +1731,76 @@ export function POSTerminal() {
       <Modal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
-        title="Quick Customer Registration"
-        description="Register a new customer for warranty tracking and loyalty points."
+        title="Register Customer to Active Bill"
+        description="Attach customer profile to this invoice for digital bill SMS dispatch, warranty certification, and sales history."
         maxWidth="md"
       >
-        <form onSubmit={handleQuickCustomerSubmit} className="space-y-3">
+        <form onSubmit={handleQuickCustomerSubmit} className="space-y-3.5">
+          {/* Information Notice */}
+          <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
+            <Smartphone className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <div className="text-[11px] leading-relaxed">
+              <strong>Official Hotline: 0713857835.</strong> Customer mobile number will receive the digital invoice and warranty message via normal SMS text message. NIC is optional for walk-in customers.
+            </div>
+          </div>
+
           <Input
-            label="Customer Full Name"
+            label="Customer Full Name *"
             value={custName}
             onChange={(e) => setCustName(e.target.value)}
-            placeholder="e.g. Nadeeka Senanayake"
+            placeholder="e.g. Kasun Jayasuriya"
             required
+            autoFocus
           />
+
           <Input
-            label="Phone Number"
+            label="Customer Mobile Number * (Normal SMS Delivery)"
             value={custPhone}
             onChange={(e) => setCustPhone(e.target.value)}
-            placeholder="e.g. 0771234567"
+            placeholder="e.g. 0771234567 or 0713857835"
             required
           />
+
+          <Input
+            label="NIC / National ID (Optional — Leave blank if walk-in)"
+            value={custNic}
+            onChange={(e) => setCustNic(e.target.value)}
+            placeholder="e.g. 19982341234V (Optional)"
+          />
+
           <Input
             label="Email Address (Optional)"
             type="email"
             value={custEmail}
             onChange={(e) => setCustEmail(e.target.value)}
-            placeholder="nadeeka@gmail.com"
+            placeholder="kasun@gmail.com"
           />
+
           <Input
-            label="NIC / National ID (Optional)"
-            value={custNic}
-            onChange={(e) => setCustNic(e.target.value)}
-            placeholder="e.g. 199028192831"
-          />
-          <Input
-            label="Address (Optional)"
+            label="Address / City (Optional)"
             value={custAddress}
             onChange={(e) => setCustAddress(e.target.value)}
-            placeholder="Colombo 05"
+            placeholder="e.g. Colombo 03, Kandy, Galle"
           />
-          <div className="flex justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={() => setIsCustomerModalOpen(false)}>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-dark-border">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => {
+                setIsCustomerModalOpen(false)
+                setCustName('')
+                setCustPhone('')
+                setCustEmail('')
+                setCustNic('')
+                setCustAddress('')
+              }}
+            >
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={custSubmitting}>
-              Save Customer
+            <Button variant="primary" size="sm" type="submit" isLoading={custSubmitting} className="font-bold">
+              Save & Link Customer
             </Button>
           </div>
         </form>

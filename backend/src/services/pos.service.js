@@ -608,17 +608,19 @@ export async function listSalesHistory(filters = {}) {
  */
 export async function listCustomers(search) {
   const where = {}
-  if (search) {
+  if (search && search.trim()) {
+    const q = search.trim()
     where.OR = [
-      { name: { contains: search } },
-      { phone: { contains: search } },
-      { email: { contains: search } },
+      { name: { contains: q } },
+      { phone: { contains: q } },
+      { nic: { contains: q } },
+      { email: { contains: q } },
     ]
   }
   return await prisma.customer.findMany({
     where,
     take: 50,
-    orderBy: { name: 'asc' },
+    orderBy: { createdAt: 'desc' },
   })
 }
 
