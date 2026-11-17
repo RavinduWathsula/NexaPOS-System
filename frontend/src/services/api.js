@@ -213,6 +213,12 @@ export const returnsAPI = {
   get: (id) => api.get(`/returns/${id}`),
 }
 
+export const tradeInAPI = {
+  list: (params) => api.get('/trade-ins', { params }),
+  get: (id) => api.get(`/trade-ins/${id}`),
+  updateStatus: (id, data) => api.patch(`/trade-ins/${id}/status`, data),
+}
+
 export const auditAPI = {
   list: (params) => api.get('/audit-logs', { params }),
 }

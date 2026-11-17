@@ -14,6 +14,7 @@ import {
   UserPlus,
   Phone,
   RefreshCw,
+  ArrowLeftRight,
   CheckCircle2,
   X,
   Receipt,
@@ -113,6 +114,20 @@ export function POSTerminal() {
   const [custNic, setCustNic] = useState('')
   const [custAddress, setCustAddress] = useState('')
   const [custSubmitting, setCustSubmitting] = useState(false)
+
+  // Trade-In Exchange State
+  const [tradeInItem, setTradeInItem] = useState(null)
+  const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false)
+  const [tradeInBrand, setTradeInBrand] = useState('Apple')
+  const [tradeInModel, setTradeInModel] = useState('')
+  const [tradeInStorage, setTradeInStorage] = useState('128GB')
+  const [tradeInColor, setTradeInColor] = useState('')
+  const [tradeInImei, setTradeInImei] = useState('')
+  const [tradeInGrade, setTradeInGrade] = useState('GRADE_B')
+  const [tradeInBattery, setTradeInBattery] = useState('85')
+  const [tradeInScreen, setTradeInScreen] = useState('FLAWLESS')
+  const [tradeInValue, setTradeInValue] = useState('')
+  const [tradeInNotes, setTradeInNotes] = useState('')
 
   // Receipt Modal State
   const [completedSale, setCompletedSale] = useState(null)
@@ -457,12 +472,47 @@ export function POSTerminal() {
   }
 
   const handleClearCart = () => {
-    if (cart.length === 0) return
-    if (window.confirm('Clear all items from the current cart?')) {
+    if (cart.length === 0 && !tradeInItem) return
+    if (window.confirm('Clear all items and trade-in from the current cart?')) {
       setCart([])
       setInvoiceDiscount(0)
       setSelectedCustomer(null)
+      setTradeInItem(null)
     }
+  }
+
+  // Trade-In Device Submission
+  const handleSaveTradeIn = (e) => {
+    e.preventDefault()
+    if (!tradeInModel.trim()) {
+      showToast('Please enter the device model')
+      return
+    }
+    if (!tradeInImei.trim() || tradeInImei.trim().length < 7) {
+      showToast('Please enter a valid IMEI number (at least 7 characters)')
+      return
+    }
+    const val = Number(tradeInValue) || 0
+    if (val <= 0) {
+      showToast('Please enter a valid approved trade-in value')
+      return
+    }
+
+    setTradeInItem({
+      brand: tradeInBrand.trim(),
+      modelName: tradeInModel.trim(),
+      storage: tradeInStorage.trim() || undefined,
+      color: tradeInColor.trim() || undefined,
+      imei1: tradeInImei.trim(),
+      conditionGrade: tradeInGrade,
+      batteryHealth: Number(tradeInBattery) || undefined,
+      screenCondition: tradeInScreen,
+      tradeInValue: val,
+      notes: tradeInNotes.trim() || undefined,
+      defectsSummary: tradeInNotes.trim() || undefined,
+    })
+    setIsTradeInModalOpen(false)
+    showToast(`Trade-In allowance applied: Rs. ${val.toLocaleString()}`)
   }
 
   // Cart Totals Calculations
@@ -470,7 +520,8 @@ export function POSTerminal() {
     (sum, item) => sum + item.quantity * item.unitPrice - (Number(item.discount) || 0),
     0
   )
-  const grandTotal = Math.max(0, cartSubtotal - Number(invoiceDiscount) + Number(invoiceTax))
+  const tradeInAllowance = tradeInItem ? Number(tradeInItem.tradeInValue) || 0 : 0
+  const grandTotal = Math.max(0, cartSubtotal - Number(invoiceDiscount) + Number(invoiceTax) - tradeInAllowance)
 
   // Open Payment Modal
   const handleOpenPayment = () => {
@@ -534,6 +585,21 @@ export function POSTerminal() {
         tax: Number(invoiceTax) || 0,
         payments: paymentsPayload,
         cashReceived: paymentMethod === 'CASH' ? Number(cashTendered) : grandTotal,
+        tradeIn: tradeInItem
+          ? {
+              brand: tradeInItem.brand,
+              modelName: tradeInItem.modelName,
+              storage: tradeInItem.storage,
+              color: tradeInItem.color,
+              imei1: tradeInItem.imei1,
+              conditionGrade: tradeInItem.conditionGrade,
+              batteryHealth: tradeInItem.batteryHealth,
+              screenCondition: tradeInItem.screenCondition,
+              defectsSummary: tradeInItem.defectsSummary,
+              tradeInValue: Number(tradeInItem.tradeInValue),
+              notes: tradeInItem.notes,
+            }
+          : undefined,
       }
 
       const res = await posAPI.checkout(payload)
@@ -544,6 +610,7 @@ export function POSTerminal() {
       setCart([])
       setInvoiceDiscount(0)
       setSelectedCustomer(null)
+      setTradeInItem(null)
       setIsPaymentModalOpen(false)
       setIsReceiptOpen(true)
 
@@ -1143,13 +1210,58 @@ export function POSTerminal() {
             )}
           </div>
 
+          {/* Trade-In Applied Card (if any) */}
+          {tradeInItem && (
+            <div className="p-2 mb-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs">
+              <div className="flex items-center justify-between font-bold text-emerald-900 dark:text-emerald-200">
+                <span className="flex items-center gap-1.5 truncate">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Exchange: {tradeInItem.brand} {tradeInItem.modelName} ({tradeInItem.storage || ''})</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTradeInItem(null)}
+                  className="text-slate-400 hover:text-rose-600 p-0.5 shrink-0"
+                  title="Remove Trade-In"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                <span className="font-mono">IMEI: {tradeInItem.imei1}</span>
+                <span className="font-bold text-emerald-800 dark:text-emerald-300">- {formatLKR(tradeInAllowance, false)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Trade-In Trigger Button */}
+          <div className="pt-2 pb-1">
+            <button
+              type="button"
+              onClick={() => setIsTradeInModalOpen(true)}
+              className="w-full py-1.5 px-2.5 rounded-xl border border-dashed border-emerald-400/80 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 flex items-center justify-center gap-1.5 transition-all"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>{tradeInItem ? 'Edit Traded-In Device' : '+ Add Device Trade-In / Exchange'}</span>
+            </button>
+          </div>
+
           {/* Cart Summary & Checkout */}
-          <div className="pt-3 border-t border-slate-200 dark:border-dark-border shrink-0 space-y-2">
+          <div className="pt-2 border-t border-slate-200 dark:border-dark-border shrink-0 space-y-2">
             <div className="space-y-1 text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal:</span>
                 <span className="font-semibold text-slate-900 dark:text-white">{formatLKR(cartSubtotal)}</span>
               </div>
+              {tradeInItem && (
+                <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400">
+                  <span className="flex items-center gap-1">
+                    <ArrowLeftRight className="w-3 h-3" />
+                    Trade-In Allowance:
+                  </span>
+                  <span>-{formatLKR(tradeInAllowance)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                 <span>Discount (LKR):</span>
                 <input
@@ -1172,7 +1284,7 @@ export function POSTerminal() {
                 variant="outline"
                 size="sm"
                 onClick={handleClearCart}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 && !tradeInItem}
                 className="col-span-1 text-xs text-rose-600 hover:bg-rose-50"
               >
                 Clear
@@ -1586,6 +1698,23 @@ export function POSTerminal() {
             </div>
           )}
 
+          {/* Trade-In Allowance Breakdown (if applied) */}
+          {tradeInItem && (
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs space-y-1">
+              <div className="flex justify-between font-bold text-emerald-900 dark:text-emerald-200">
+                <span className="flex items-center gap-1.5 truncate">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Exchange: {tradeInItem.brand} {tradeInItem.modelName}</span>
+                </span>
+                <span className="shrink-0">- {formatLKR(tradeInAllowance, false)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-emerald-700 dark:text-emerald-400 pt-0.5 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                <span>Items Subtotal: {formatLKR(cartSubtotal, false)}</span>
+                <span className="font-bold text-emerald-900 dark:text-emerald-200">Net Remaining: {formatLKR(grandTotal, false)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Payment Method Selector */}
           <div className="grid grid-cols-4 gap-2">
             {[
@@ -1801,6 +1930,150 @@ export function POSTerminal() {
             </Button>
             <Button variant="primary" size="sm" type="submit" isLoading={custSubmitting} className="font-bold">
               Save & Link Customer
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 5: DEVICE TRADE-IN & UPGRADE EVALUATION */}
+      <Modal
+        isOpen={isTradeInModalOpen}
+        onClose={() => setIsTradeInModalOpen(false)}
+        title="Device Trade-In & Upgrade Evaluation"
+        description="Inspect customer's pre-owned smartphone and apply approved trade-in credit directly against this sale."
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSaveTradeIn} className="space-y-4">
+          {/* Information Notice */}
+          <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2">
+            <ArrowLeftRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-[11px] leading-relaxed">
+              <strong>Trade-In Credit Offset:</strong> The approved valuation will be deducted from the customer's total cart bill. The customer only pays the remaining cash/card difference.
+            </div>
+          </div>
+
+          {/* Device Brand & Model */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Device Brand *"
+              value={tradeInBrand}
+              onChange={(e) => setTradeInBrand(e.target.value)}
+              options={[
+                { value: 'Apple', label: 'Apple' },
+                { value: 'Samsung', label: 'Samsung' },
+                { value: 'Xiaomi', label: 'Xiaomi' },
+                { value: 'Google Pixel', label: 'Google Pixel' },
+                { value: 'OnePlus', label: 'OnePlus' },
+                { value: 'Huawei', label: 'Huawei' },
+                { value: 'Oppo / Vivo', label: 'Oppo / Vivo' },
+                { value: 'Other', label: 'Other' },
+              ]}
+            />
+            <Input
+              label="Model Name *"
+              value={tradeInModel}
+              onChange={(e) => setTradeInModel(e.target.value)}
+              placeholder="e.g. iPhone 11, Galaxy S21"
+              required
+            />
+          </div>
+
+          {/* Storage, Color & Primary IMEI */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label="Storage (Capacity)"
+              value={tradeInStorage}
+              onChange={(e) => setTradeInStorage(e.target.value)}
+              placeholder="e.g. 64GB, 128GB, 256GB"
+            />
+            <Input
+              label="Device Color"
+              value={tradeInColor}
+              onChange={(e) => setTradeInColor(e.target.value)}
+              placeholder="e.g. Space Black"
+            />
+            <Input
+              label="Primary IMEI *"
+              value={tradeInImei}
+              onChange={(e) => setTradeInImei(e.target.value)}
+              placeholder="e.g. 358912345678901"
+              required
+            />
+          </div>
+
+          {/* Condition Grading & Battery */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Select
+              label="Condition Grade *"
+              value={tradeInGrade}
+              onChange={(e) => setTradeInGrade(e.target.value)}
+              options={[
+                { value: 'GRADE_A_PLUS', label: 'Grade A+ (Like New / Mint)' },
+                { value: 'GRADE_A', label: 'Grade A (Excellent - Micro-scratches)' },
+                { value: 'GRADE_B', label: 'Grade B (Good - Normal Light Wear)' },
+                { value: 'GRADE_C', label: 'Grade C (Fair - Visible Scuffs / Scratches)' },
+                { value: 'FAULTY', label: 'Faulty (Cracked / Damaged / For Parts)' },
+              ]}
+            />
+            <Input
+              label="Battery Health %"
+              type="number"
+              min="1"
+              max="100"
+              value={tradeInBattery}
+              onChange={(e) => setTradeInBattery(e.target.value)}
+              placeholder="e.g. 84"
+            />
+            <Select
+              label="Screen Status"
+              value={tradeInScreen}
+              onChange={(e) => setTradeInScreen(e.target.value)}
+              options={[
+                { value: 'FLAWLESS', label: 'Flawless / Pristine' },
+                { value: 'LIGHT_SCRATCHES', label: 'Light Scratches' },
+                { value: 'HEAVY_SCRATCHES', label: 'Heavy Scratches' },
+                { value: 'CRACKED_GLASS', label: 'Cracked Glass / Lines' },
+              ]}
+            />
+          </div>
+
+          {/* Approved Valuation & Defect Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-dark-surface border border-slate-200 dark:border-dark-border">
+            <Input
+              label="Approved Trade-In Value (LKR) *"
+              type="number"
+              min="1"
+              value={tradeInValue}
+              onChange={(e) => setTradeInValue(e.target.value)}
+              placeholder="e.g. 45000"
+              required
+            />
+            <Input
+              label="Defects Summary / Inspection Notes"
+              value={tradeInNotes}
+              onChange={(e) => setTradeInNotes(e.target.value)}
+              placeholder="e.g. Back scuffed, screen clean, iCloud removed"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-dark-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsTradeInModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              className="font-bold flex items-center gap-1.5"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>Apply Trade-In to Cart</span>
             </Button>
           </div>
         </form>

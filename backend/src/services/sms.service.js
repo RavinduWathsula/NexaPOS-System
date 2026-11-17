@@ -123,6 +123,14 @@ export function buildReceiptTextMessage(sale, storePhone = '0713857835') {
   if (itemsSummary) {
     msg += `Items:\n${itemsSummary}\n`
   }
+  if (sale.tradeIn) {
+    const tVal = Number(sale.tradeIn.tradeInValue || 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    msg += `⇄ Trade-In: ${sale.tradeIn.brand} ${sale.tradeIn.modelName} (IMEI: ${sale.tradeIn.imei1})\n`
+    msg += `Trade-In Allowance: -LKR ${tVal}\n`
+  }
   msg += `Total Paid: LKR ${total}\n`
   if (warranties) {
     msg += `Warranty: ${warranties}\n`
@@ -179,6 +187,7 @@ export async function dispatchBillSMS({
             },
           },
           warranties: true,
+          tradeIn: true,
         },
       })
     } catch (err) {
@@ -268,9 +277,13 @@ export async function dispatchBillSMS({
     console.error('Failed to record SMS audit log:', logErr)
   }
 
+  const isGatewayConnected = Boolean(process.env.NOTIFYLK_API_KEY && process.env.NOTIFYLK_USER_ID)
+
   return {
     success: true,
     messageId,
+    isGatewayConnected,
+    gatewayProvider: gatewayResponse.provider,
     sender: {
       phone: companyPhone,
       display: `${companyPhone} (NexaPOS Official Hotline)`,

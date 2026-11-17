@@ -254,6 +254,13 @@ export function SalesInvoices() {
                       <code className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400">
                         #{sale.invoiceNumber}
                       </code>
+                      {(sale.tradeIn || Number(sale.tradeInCredit) > 0) && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            ⇄ Trade-In: -{formatLKR(sale.tradeIn?.tradeInValue || sale.tradeInCredit, false)}
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
 
                     <TableCell>

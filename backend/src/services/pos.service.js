@@ -142,7 +142,7 @@ export async function lookupByIMEI(imei) {
  * Atomically validates stock/IMEIs, creates invoice, updates inventory, marks devices SOLD, and creates warranties.
  */
 export async function processSale(data, cashierId) {
-  const { customerId, items, discount = 0, tax = 0, payments, cashReceived, notes } = data
+  const { customerId, items, discount = 0, tax = 0, payments, cashReceived, notes, tradeIn } = data
 
   if (!items || items.length === 0) {
     const error = new Error('Cannot process empty cart.')
@@ -206,7 +206,8 @@ export async function processSale(data, cashierId) {
 
   const invoiceDiscount = Number(discount) || 0
   const invoiceTax = Number(tax) || 0
-  const totalAmount = Math.max(0, subtotal - invoiceDiscount + invoiceTax)
+  const tradeInCredit = Number(tradeIn?.tradeInValue) || 0
+  const totalAmount = Math.max(0, subtotal - invoiceDiscount + invoiceTax - tradeInCredit)
 
   const paidAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0)
   const isFullyPaid = paidAmount >= totalAmount - 0.01
@@ -237,6 +238,7 @@ export async function processSale(data, cashierId) {
         cashierId,
         subtotal,
         discount: invoiceDiscount,
+        tradeInCredit,
         tax: invoiceTax,
         totalAmount,
         paidAmount,
@@ -246,6 +248,33 @@ export async function processSale(data, cashierId) {
         notes: notes?.trim() || null,
       },
     })
+
+    // If trade-in device was provided, register TradeIn record
+    if (tradeIn && tradeInCredit > 0) {
+      const tradeInNumber = `TRD-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`
+      await tx.tradeIn.create({
+        data: {
+          tradeInNumber,
+          customerId: customerId || null,
+          cashierId,
+          saleId: sale.id,
+          brand: tradeIn.brand.trim(),
+          modelName: tradeIn.modelName.trim(),
+          storage: tradeIn.storage?.trim() || null,
+          color: tradeIn.color?.trim() || null,
+          imei1: tradeIn.imei1.trim(),
+          imei2: tradeIn.imei2?.trim() || null,
+          serialNumber: tradeIn.serialNumber?.trim() || null,
+          conditionGrade: tradeIn.conditionGrade || 'GRADE_B',
+          batteryHealth: tradeIn.batteryHealth ? Number(tradeIn.batteryHealth) : null,
+          screenCondition: tradeIn.screenCondition || null,
+          housingCondition: tradeIn.housingCondition || null,
+          defectsSummary: tradeIn.defectsSummary || null,
+          tradeInValue: tradeInCredit,
+          notes: tradeIn.notes || null,
+        },
+      })
+    }
 
     // B. Process items
     for (const item of items) {
@@ -454,6 +483,7 @@ export async function processSale(data, cashierId) {
         },
         payments: true,
         warranties: true,
+        tradeIn: true,
       },
     })
   })
@@ -493,6 +523,7 @@ export async function getSaleReceipt(idOrInvoice) {
       },
       payments: true,
       warranties: true,
+      tradeIn: true,
     },
   })
 
@@ -565,6 +596,7 @@ export async function listSalesHistory(filters = {}) {
         customer: { select: { id: true, name: true, phone: true } },
         cashier: { select: { id: true, name: true } },
         payments: true,
+        tradeIn: true,
         items: {
           select: {
             id: true,

@@ -20,6 +20,7 @@ import { Purchases } from '@/pages/modules/Purchases'
 import { Suppliers } from '@/pages/modules/Suppliers'
 import { Customers } from '@/pages/modules/Customers'
 import { SalesInvoices } from '@/pages/modules/SalesInvoices'
+import { TradeInManagement } from '@/pages/modules/TradeInManagement'
 import { WarrantyManagement } from '@/pages/modules/WarrantyManagement'
 import { RepairManagement } from '@/pages/modules/RepairManagement'
 import { Employees } from '@/pages/modules/Employees'
@@ -70,6 +71,7 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'MANAGER', 'CASHIER']} />}>
             <Route path="/customers" element={<Customers />} />
             <Route path="/sales-invoices" element={<SalesInvoices />} />
+            <Route path="/trade-ins" element={<TradeInManagement />} />
             <Route path="/returns" element={<ReturnsManagement />} />
           </Route>
 
@@ -95,6 +97,7 @@ export function AppRoutes() {
           {/* Common Aliases & Deep-Link Forwarding */}
           <Route path="/sales" element={<Navigate to="/sales-invoices" replace />} />
           <Route path="/invoices" element={<Navigate to="/sales-invoices" replace />} />
+          <Route path="/trade-in" element={<Navigate to="/trade-ins" replace />} />
           <Route path="/repairs" element={<Navigate to="/repair-management" replace />} />
           <Route path="/warranty" element={<Navigate to="/warranty-management" replace />} />
           <Route path="/warranties" element={<Navigate to="/warranty-management" replace />} />

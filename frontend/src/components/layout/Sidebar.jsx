@@ -10,6 +10,7 @@ import {
   Boxes,
   Receipt,
   RotateCcw,
+  ArrowLeftRight,
   Users,
   ShieldCheck,
   ShieldAlert,
@@ -91,6 +92,14 @@ export const NAVIGATION_GROUPS = [
         name: 'Sales & Invoices',
         path: '/sales-invoices',
         icon: Receipt,
+        allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER'],
+      },
+      {
+        name: 'Trade-In & Upgrades',
+        path: '/trade-ins',
+        icon: ArrowLeftRight,
+        badge: 'New',
+        badgeColor: 'bg-amber-500',
         allowedRoles: ['SUPER_ADMIN', 'MANAGER', 'CASHIER'],
       },
       {

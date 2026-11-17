@@ -85,6 +85,8 @@ export function ThermalReceipt({ sale, onClose }) {
   const paid = Number(sale.paidAmount) || 0
   const change = Number(sale.changeAmount) || 0
   const remaining = Math.max(0, total - paid)
+  const tradeIn = sale.tradeIn || null
+  const tradeInCredit = Number(sale.tradeInCredit || tradeIn?.tradeInValue || 0)
 
   const companyHotline = storeSettings.store_phone || '0713857835'
   const customerName = sale.customer?.name || 'Walk-in Customer'
@@ -141,6 +143,12 @@ export function ThermalReceipt({ sale, onClose }) {
     msg += `📅 *Date:* ${dateStr} ${timeStr}\n`
     if (itemsSummary) {
       msg += `📦 *Purchased Items:*\n${itemsSummary}\n`
+    }
+    if (tradeIn) {
+      msg += `🔄 *Trade-In Device (Exchange Credit):*\n`
+      msg += `   • ${tradeIn.brand || ''} ${tradeIn.modelName || ''} (${tradeIn.storage || ''} ${tradeIn.color || ''})\n`
+      if (tradeIn.imei1) msg += `   • IMEI: ${tradeIn.imei1} | Grade: ${tradeIn.conditionGrade || 'Standard'}\n`
+      msg += `   • Trade-In Credit: -${formatLKR(tradeInCredit, false)}\n`
     }
     msg += `💳 *Total Amount:* ${formatLKR(sale.totalAmount, false)} [${sale.payments?.map((p) => p.method).join(', ') || 'CASH'} - PAID]\n`
     if (warranties) {
@@ -541,16 +549,18 @@ export function ThermalReceipt({ sale, onClose }) {
           </div>
         )}
 
-        {/* Real Delivery Confirmation Banner */}
+        {/* Delivery Confirmation Banner */}
         {smsDispatchResult && (
           <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
             <div className="flex items-center justify-between font-bold">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                SMS Dispatched & Recorded Successfully!
+                {smsDispatchResult.isGatewayConnected
+                  ? 'SMS Sent to Cellular Network!'
+                  : 'SMS Logged & Prepared in System!'}
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 font-mono uppercase">
-                {smsDispatchResult.deliveryStatus || 'DELIVERED'}
+                {smsDispatchResult.isGatewayConnected ? 'GATEWAY: DELIVERED' : 'SYSTEM LOGGED'}
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mt-1 text-[11px] text-emerald-800 dark:text-emerald-300">
@@ -564,6 +574,20 @@ export function ThermalReceipt({ sale, onClose }) {
                 Msg ID: {smsDispatchResult.messageId}
               </div>
             </div>
+            {!smsDispatchResult.isGatewayConnected && (
+              <div className="mt-2 pt-1.5 border-t border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-900 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <span>
+                  💡 <strong>To deliver to the customer's physical phone right now:</strong> Click <strong>"Open Phone SMS"</strong> to send instantly from your device's SIM card!
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSendNativeSMS}
+                  className="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-bold shrink-0 self-start sm:self-auto text-[10px]"
+                >
+                  Click Here to Open SMS App
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -948,6 +972,94 @@ export function ThermalReceipt({ sale, onClose }) {
               </table>
             </div>
 
+            {/* Traded-In Device (Customer Exchange Allowance Card) */}
+            {tradeIn && (
+              <div className="mb-4 sm:mb-6 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-amber-50/90 via-orange-50/40 to-amber-50/80 border border-amber-200/90 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-amber-200/80">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs">
+                      ⇄
+                    </span>
+                    <div>
+                      <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
+                        Device Trade-In / Customer Exchange
+                      </h3>
+                      <p className="text-[10px] text-amber-800 font-medium">
+                        Credit applied directly against invoice total
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-[10px] font-mono font-bold bg-white/90 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+                      {tradeIn.tradeInNumber || 'TRD-EXCHANGE'}
+                    </span>
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-200/80 text-amber-900">
+                      {tradeIn.conditionGrade || 'GRADE_B'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Traded-In Device</span>
+                    <span className="font-bold text-slate-900">
+                      {tradeIn.brand} {tradeIn.modelName}
+                    </span>
+                    {(tradeIn.storage || tradeIn.color) && (
+                      <span className="text-[11px] text-slate-600 block">
+                        {tradeIn.storage} {tradeIn.color}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Device IMEI & Serial</span>
+                    <span className="font-mono font-bold text-slate-900 text-[11px] block">
+                      {tradeIn.imei1}
+                    </span>
+                    {tradeIn.imei2 && (
+                      <span className="font-mono text-[10px] text-slate-500 block">
+                        IMEI2: {tradeIn.imei2}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Condition & Health</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {tradeIn.batteryHealth && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                          Battery {tradeIn.batteryHealth}%
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-700 font-medium">
+                        {tradeIn.screenCondition || 'Screen: Good'}
+                      </span>
+                    </div>
+                    {tradeIn.defectsSummary && (
+                      <span className="text-[10px] text-slate-500 block truncate mt-0.5" title={tradeIn.defectsSummary}>
+                        {tradeIn.defectsSummary}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-right sm:text-right">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Approved Credit</span>
+                    <span className="text-base sm:text-lg font-black text-amber-700 font-mono">
+                      -{formatLKR(tradeInCredit, false)}
+                    </span>
+                    <span className="text-[9px] text-emerald-700 font-bold block">
+                      ✓ Deducted from bill
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 pt-2 border-t border-amber-200/60 text-[9px] sm:text-[9.5px] text-amber-900/90 leading-tight">
+                  <strong>Customer Transfer Certification:</strong> Customer confirms that they are the legal owner of the traded-in device, all Apple ID / Google accounts have been unlinked & wiped, and ownership is transferred to NexaPOS.
+                </div>
+              </div>
+            )}
+
             {/* Bottom 2-Column: Left (Payments + Warranty) & Right (Financial Totals) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-start mb-4 sm:mb-6">
               {/* Left Column: Payment Details & Official Warranty Certificate */}
@@ -1047,6 +1159,16 @@ export function ThermalReceipt({ sale, onClose }) {
                     <span>VAT / Tax:</span>
                     <span className="font-mono font-semibold text-slate-900">
                       {formatLKR(tax, false)}
+                    </span>
+                  </div>
+                )}
+                {tradeInCredit > 0 && (
+                  <div className="flex justify-between text-amber-800 bg-amber-50/90 px-2 py-1.5 rounded-lg border border-amber-200/90 font-semibold text-[11px] sm:text-xs">
+                    <span className="flex items-center gap-1 font-bold">
+                      <span>⇄ Less Trade-In Allowance:</span>
+                    </span>
+                    <span className="font-mono font-bold text-amber-900">
+                      -{formatLKR(tradeInCredit, false)}
                     </span>
                   </div>
                 )}
@@ -1230,12 +1352,38 @@ export function ThermalReceipt({ sale, onClose }) {
               ))}
             </div>
 
+            {/* Trade-In Exchange Details */}
+            {tradeIn && (
+              <div className="py-2 border-b border-dashed border-black text-[10px] space-y-0.5 bg-slate-50 p-1.5 rounded my-1">
+                <div className="flex justify-between font-bold">
+                  <span>TRADE-IN / EXCHANGE:</span>
+                  <span className="text-[8.5px] border border-black px-1 uppercase font-bold">{tradeIn.conditionGrade || 'USED'}</span>
+                </div>
+                <div className="text-[9.5px]">
+                  {tradeIn.brand} {tradeIn.modelName} ({tradeIn.storage || ''} {tradeIn.color || ''})
+                </div>
+                <div className="text-[8.5px] font-bold text-slate-800">
+                  IMEI: {tradeIn.imei1} {tradeIn.batteryHealth ? `[Batt: ${tradeIn.batteryHealth}%]` : ''}
+                </div>
+                <div className="flex justify-between font-extrabold pt-0.5 border-t border-slate-300">
+                  <span>TRADE-IN CREDIT:</span>
+                  <span>-{formatLKR(tradeInCredit, false)}</span>
+                </div>
+              </div>
+            )}
+
             {/* Totals Section */}
             <div className="py-2 border-b border-dashed border-black text-[11px] space-y-1">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span>{formatLKR(subtotal, false)}</span>
               </div>
+              {tradeInCredit > 0 && (
+                <div className="flex justify-between font-bold">
+                  <span>Trade-In Allowance:</span>
+                  <span>-{formatLKR(tradeInCredit, false)}</span>
+                </div>
+              )}
               {discount > 0 && (
                 <div className="flex justify-between font-bold text-rose-700">
                   <span>Invoice Discount:</span>
