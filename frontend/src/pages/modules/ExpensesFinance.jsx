@@ -320,10 +320,10 @@ export function ExpensesFinance() {
       </div>
 
       {/* Main Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab('expenses')}
-          className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 transition-colors ${
+          className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 shrink-0 transition-colors ${
             activeTab === 'expenses'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
@@ -335,7 +335,7 @@ export function ExpensesFinance() {
 
         <button
           onClick={() => setActiveTab('cash-sessions')}
-          className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 transition-colors ${
+          className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 shrink-0 transition-colors ${
             activeTab === 'cash-sessions'
               ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'

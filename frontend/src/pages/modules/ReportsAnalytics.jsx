@@ -245,7 +245,7 @@ export function ReportsAnalytics() {
         </div>
 
         {/* Custom Date Form */}
-        <form onSubmit={handleApplyCustomDates} className="flex items-center gap-2 text-xs">
+        <form onSubmit={handleApplyCustomDates} className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-slate-400">Custom:</span>
           <input
             type="date"

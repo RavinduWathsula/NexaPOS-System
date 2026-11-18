@@ -454,7 +454,7 @@ export function Customers() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                 First Name *
@@ -478,7 +478,7 @@ export function Customers() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                 Phone Number *
@@ -503,7 +503,7 @@ export function Customers() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                 Street Address
@@ -613,10 +613,10 @@ export function Customers() {
             </div>
 
             {/* Profile Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-4">
+            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-4 overflow-x-auto pb-1">
               <button
                 onClick={() => setActiveProfileTab('sales')}
-                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 shrink-0 transition-colors ${
                   activeProfileTab === 'sales'
                     ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
@@ -628,7 +628,7 @@ export function Customers() {
 
               <button
                 onClick={() => setActiveProfileTab('warranties')}
-                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 shrink-0 transition-colors ${
                   activeProfileTab === 'warranties'
                     ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
@@ -640,7 +640,7 @@ export function Customers() {
 
               <button
                 onClick={() => setActiveProfileTab('repairs')}
-                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 pb-2.5 text-sm font-semibold border-b-2 shrink-0 transition-colors ${
                   activeProfileTab === 'repairs'
                     ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
@@ -658,41 +658,43 @@ export function Customers() {
                   {selectedCustomer.sales?.length === 0 ? (
                     <p className="text-center py-8 text-sm text-slate-400">No purchase records found.</p>
                   ) : (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        <tr>
-                          <th className="p-2.5">Invoice #</th>
-                          <th className="p-2.5">Date</th>
-                          <th className="p-2.5">Items</th>
-                          <th className="p-2.5 text-right">Total</th>
-                          <th className="p-2.5 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {selectedCustomer.sales.map((s) => (
-                          <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
-                              {s.invoiceNumber}
-                            </td>
-                            <td className="p-2.5 text-slate-500">
-                              {new Date(s.saleDate).toLocaleDateString()}
-                            </td>
-                            <td className="p-2.5">{s.items?.length || 0} items</td>
-                            <td className="p-2.5 text-right font-medium text-slate-900 dark:text-white">
-                              {formatLKR(s.totalAmount)}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <Badge
-                                variant={s.paymentStatus === 'PAID' ? 'success' : 'warning'}
-                                size="sm"
-                              >
-                                {s.paymentStatus}
-                              </Badge>
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="p-2.5">Invoice #</th>
+                            <th className="p-2.5">Date</th>
+                            <th className="p-2.5">Items</th>
+                            <th className="p-2.5 text-right">Total</th>
+                            <th className="p-2.5 text-center">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {selectedCustomer.sales.map((s) => (
+                            <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
+                                {s.invoiceNumber}
+                              </td>
+                              <td className="p-2.5 text-slate-500">
+                                {new Date(s.saleDate).toLocaleDateString()}
+                              </td>
+                              <td className="p-2.5">{s.items?.length || 0} items</td>
+                              <td className="p-2.5 text-right font-medium text-slate-900 dark:text-white">
+                                {formatLKR(s.totalAmount)}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <Badge
+                                  variant={s.paymentStatus === 'PAID' ? 'success' : 'warning'}
+                                  size="sm"
+                                >
+                                  {s.paymentStatus}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               )}
@@ -702,48 +704,50 @@ export function Customers() {
                   {selectedCustomer.warranties?.length === 0 ? (
                     <p className="text-center py-8 text-sm text-slate-400">No registered warranties found.</p>
                   ) : (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        <tr>
-                          <th className="p-2.5">Warranty Code</th>
-                          <th className="p-2.5">Device Model / IMEI</th>
-                          <th className="p-2.5">Valid Until</th>
-                          <th className="p-2.5 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {selectedCustomer.warranties.map((w) => (
-                          <tr key={w.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
-                              {w.warrantyCode}
-                            </td>
-                            <td className="p-2.5">
-                              <div>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                  {w.device?.productVariant?.product?.name || 'Device'}
-                                </span>
-                                {w.device?.imei1 && (
-                                  <span className="block font-mono text-[11px] text-slate-400">
-                                    IMEI: {w.device.imei1}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-2.5 text-slate-500">
-                              {new Date(w.endDate).toLocaleDateString()}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <Badge
-                                variant={w.status === 'ACTIVE' ? 'success' : w.status === 'EXPIRED' ? 'danger' : 'warning'}
-                                size="sm"
-                              >
-                                {w.status}
-                              </Badge>
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="p-2.5">Warranty Code</th>
+                            <th className="p-2.5">Device Model / IMEI</th>
+                            <th className="p-2.5">Valid Until</th>
+                            <th className="p-2.5 text-center">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {selectedCustomer.warranties.map((w) => (
+                            <tr key={w.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
+                                {w.warrantyCode}
+                              </td>
+                              <td className="p-2.5">
+                                <div>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                    {w.device?.productVariant?.product?.name || 'Device'}
+                                  </span>
+                                  {w.device?.imei1 && (
+                                    <span className="block font-mono text-[11px] text-slate-400">
+                                      IMEI: {w.device.imei1}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-2.5 text-slate-500">
+                                {new Date(w.endDate).toLocaleDateString()}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <Badge
+                                  variant={w.status === 'ACTIVE' ? 'success' : w.status === 'EXPIRED' ? 'danger' : 'warning'}
+                                  size="sm"
+                                >
+                                  {w.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               )}
@@ -753,39 +757,41 @@ export function Customers() {
                   {selectedCustomer.repairs?.length === 0 ? (
                     <p className="text-center py-8 text-sm text-slate-400">No repair tickets found.</p>
                   ) : (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        <tr>
-                          <th className="p-2.5">Ticket #</th>
-                          <th className="p-2.5">Device & Problem</th>
-                          <th className="p-2.5 text-right">Est. Cost</th>
-                          <th className="p-2.5 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {selectedCustomer.repairs.map((r) => (
-                          <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
-                              {r.ticketNumber}
-                            </td>
-                            <td className="p-2.5">
-                              <span className="font-semibold text-slate-800 dark:text-slate-200 block">
-                                {r.deviceModel}
-                              </span>
-                              <span className="text-slate-400 line-clamp-1">{r.issueDescription}</span>
-                            </td>
-                            <td className="p-2.5 text-right font-medium text-slate-900 dark:text-white">
-                              {formatLKR(r.finalCost || r.estimatedCost)}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <Badge variant="purple" size="sm">
-                                {r.status}
-                              </Badge>
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="p-2.5">Ticket #</th>
+                            <th className="p-2.5">Device & Problem</th>
+                            <th className="p-2.5 text-right">Est. Cost</th>
+                            <th className="p-2.5 text-center">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {selectedCustomer.repairs.map((r) => (
+                            <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="p-2.5 font-mono font-semibold text-brand-600 dark:text-brand-400">
+                                {r.ticketNumber}
+                              </td>
+                              <td className="p-2.5">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                                  {r.deviceModel}
+                                </span>
+                                <span className="text-slate-400 line-clamp-1">{r.issueDescription}</span>
+                              </td>
+                              <td className="p-2.5 text-right font-medium text-slate-900 dark:text-white">
+                                {formatLKR(r.finalCost || r.estimatedCost)}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <Badge variant="purple" size="sm">
+                                  {r.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               )}

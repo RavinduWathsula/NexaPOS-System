@@ -352,7 +352,7 @@ export function WarrantyManagement() {
 
       {/* Filter Tabs and Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex bg-slate-100 p-1 rounded-xl dark:bg-slate-800">
+        <div className="flex overflow-x-auto bg-slate-100 p-1 rounded-xl dark:bg-slate-800 shrink-0">
           {['ALL', 'ACTIVE', 'EXPIRED', 'CLAIMED'].map((tab) => (
             <button
               key={tab}

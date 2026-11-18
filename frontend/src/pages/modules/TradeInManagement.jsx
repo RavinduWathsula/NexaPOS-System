@@ -276,11 +276,11 @@ export function TradeInManagement() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
+                className="flex-1 sm:flex-none min-w-[130px] px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="RECEIVED">Received</option>
@@ -293,7 +293,7 @@ export function TradeInManagement() {
               <select
                 value={gradeFilter}
                 onChange={(e) => setGradeFilter(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
+                className="flex-1 sm:flex-none min-w-[130px] px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
               >
                 <option value="ALL">All Condition Grades</option>
                 <option value="GRADE_A_PLUS">Grade A+ (Mint)</option>
@@ -303,7 +303,7 @@ export function TradeInManagement() {
                 <option value="FAULTY">Faulty</option>
               </select>
 
-              <Button type="submit" variant="secondary" size="sm">
+              <Button type="submit" variant="secondary" size="sm" className="w-full sm:w-auto">
                 Filter
               </Button>
             </div>

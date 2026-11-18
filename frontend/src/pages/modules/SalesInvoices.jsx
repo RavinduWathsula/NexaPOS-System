@@ -181,25 +181,25 @@ export function SalesInvoices() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
+                className="flex-1 sm:flex-none px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
               />
               <span className="text-xs text-slate-400">to</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
+                className="flex-1 sm:flex-none px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface"
               />
 
               <select
                 value={paymentStatus}
                 onChange={(e) => setPaymentStatus(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
+                className="flex-1 sm:flex-none px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface font-medium"
               >
                 <option value="">All Statuses</option>
                 <option value="PAID">PAID</option>
@@ -207,7 +207,7 @@ export function SalesInvoices() {
                 <option value="UNPAID">UNPAID</option>
               </select>
 
-              <Button type="submit" variant="secondary" size="sm">
+              <Button type="submit" variant="secondary" size="sm" className="w-full sm:w-auto">
                 Filter
               </Button>
             </div>

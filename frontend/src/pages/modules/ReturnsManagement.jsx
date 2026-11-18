@@ -297,7 +297,7 @@ export function ReturnsManagement() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
           <span className="text-xs uppercase font-medium text-slate-400 block">
             Total Return Requests
@@ -343,7 +343,7 @@ export function ReturnsManagement() {
 
       {/* Tabs & Search Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex bg-slate-100 p-1 rounded-xl dark:bg-slate-800">
+        <div className="flex overflow-x-auto bg-slate-100 p-1 rounded-xl dark:bg-slate-800 shrink-0">
           {['ALL', 'PENDING', 'COMPLETED', 'REJECTED'].map((st) => (
             <button
               key={st}

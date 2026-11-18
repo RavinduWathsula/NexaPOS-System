@@ -441,11 +441,11 @@ export function Inventory() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-dark-border pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-dark-border pb-2 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('stock')}
-          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-colors ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl shrink-0 transition-colors ${
             activeTab === 'stock'
               ? 'bg-brand-600 text-white shadow-glow-blue'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface'
@@ -456,7 +456,7 @@ export function Inventory() {
         <button
           type="button"
           onClick={() => setActiveTab('movements')}
-          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1.5 transition-colors ${
             activeTab === 'movements'
               ? 'bg-brand-600 text-white shadow-glow-blue'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface'
@@ -468,7 +468,7 @@ export function Inventory() {
         <button
           type="button"
           onClick={() => setActiveTab('adjustments')}
-          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1.5 transition-colors ${
             activeTab === 'adjustments'
               ? 'bg-brand-600 text-white shadow-glow-blue'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface'

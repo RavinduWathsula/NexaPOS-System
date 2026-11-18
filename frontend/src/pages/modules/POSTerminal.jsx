@@ -34,6 +34,7 @@ import {
   Eye,
   Package,
   ShoppingCart,
+  ArrowRight,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -46,6 +47,7 @@ import { ThermalReceipt } from '@/components/pos/ThermalReceipt'
 import { posAPI, categoriesAPI, brandsAPI } from '@/services/api'
 import { formatLKR } from '@/utils/currency'
 import { useAuthStore } from '@/stores/authStore'
+import { cn } from '@/utils/cn'
 
 export function POSTerminal() {
   const { user } = useAuthStore()
@@ -132,6 +134,9 @@ export function POSTerminal() {
   // Receipt Modal State
   const [completedSale, setCompletedSale] = useState(null)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+
+  // Mobile POS Responsive Tab Switcher ('products' | 'cart')
+  const [mobileTab, setMobileTab] = useState('products')
 
   // Notifications
   const [toastMsg, setToastMsg] = useState('')
@@ -660,7 +665,7 @@ export function POSTerminal() {
   }
 
   return (
-    <div className="h-[calc(100vh-5.5rem)] flex flex-col space-y-3 pb-2">
+    <div className="h-[calc(100dvh-5rem)] min-h-[500px] lg:h-[calc(100vh-5.5rem)] flex flex-col space-y-2.5 pb-1 min-h-0">
       {/* Toast Alert */}
       {toastMsg && (
         <div className="fixed top-20 right-8 z-50 p-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 animate-in fade-in">
@@ -710,6 +715,37 @@ export function POSTerminal() {
             Scan Item
           </button>
         </form>
+      </div>
+
+      {/* Mobile Mode Switcher Bar (< lg) */}
+      <div className="lg:hidden flex items-center p-1 bg-slate-100 dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shrink-0 gap-1 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setMobileTab('products')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'products'
+              ? 'bg-brand-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />
+          <span>Products Catalog ({products.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
+            mobileTab === 'cart'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          <span>Cart & Checkout ({cart.reduce((s, i) => s + i.quantity, 0)})</span>
+          {(cart.length > 0 || tradeInItem) && (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+          )}
+        </button>
       </div>
 
       {/* POS 3-COLUMN LAYOUT */}
@@ -763,7 +799,12 @@ export function POSTerminal() {
         </div>
 
         {/* CENTER COLUMN: Products Grid (6 cols on lg) */}
-        <div className="lg:col-span-6 flex flex-col space-y-3 bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0">
+        <div
+          className={cn(
+            'lg:col-span-6 flex-col space-y-3 bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0 shadow-sm',
+            mobileTab === 'products' ? 'flex flex-1 min-h-0' : 'hidden lg:flex'
+          )}
+        >
           {/* Search bar inside products */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -774,6 +815,35 @@ export function POSTerminal() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
+          </div>
+
+          {/* Mobile & Tablet Category Horizontal Scroll (< lg) */}
+          <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 -mx-1 px-1">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+                selectedCategory === ''
+                  ? 'bg-brand-600 text-white shadow-2xs'
+                  : 'bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              All Departments
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedCategory(c.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+                  selectedCategory === c.id
+                    ? 'bg-brand-600 text-white shadow-2xs'
+                    : 'bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
           </div>
 
           {/* Product Cards Grid */}
@@ -905,18 +975,34 @@ export function POSTerminal() {
         </div>
 
         {/* RIGHT COLUMN: Shopping Cart & Checkout (4 cols on lg) */}
-        <div className="lg:col-span-4 flex flex-col bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0 shadow-sm">
+        <div
+          className={cn(
+            'lg:col-span-4 flex-col bg-white dark:bg-dark-card p-3 rounded-2xl border border-slate-200 dark:border-dark-border min-h-0 shadow-sm',
+            mobileTab === 'cart' ? 'flex flex-1 min-h-0' : 'hidden lg:flex'
+          )}
+        >
           {/* Customer Selection & Profile Hub */}
           <div className="pb-3 border-b border-slate-100 dark:border-dark-border shrink-0">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-brand-600" />
-                Customer & Digital Bill
-              </span>
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('products')}
+                  className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-surface flex items-center gap-1 text-xs font-bold shrink-0"
+                  title="Return to products catalog"
+                >
+                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                  <span>Catalog</span>
+                </button>
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <User className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                  <span className="truncate">Customer & Digital Bill</span>
+                </span>
+              </div>
               {selectedCustomer ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Linked to Invoice
+                  Linked
                 </span>
               ) : (
                 <button
@@ -934,10 +1020,10 @@ export function POSTerminal() {
                     }
                     setIsCustomerModalOpen(true)
                   }}
-                  className="text-[10px] font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                  className="text-[10px] font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 shrink-0"
                 >
                   <UserPlus className="w-3 h-3" />
-                  + New Customer
+                  + New
                 </button>
               )}
             </div>
@@ -1137,12 +1223,12 @@ export function POSTerminal() {
             )}
           </div>
 
-          {/* Cart Items List */}
-          <div className="flex-1 overflow-y-auto py-2 space-y-2 min-h-0 pr-1">
+          {/* Cart Scrollable Body: Items + Trade-In (Everything inside so it never clips!) */}
+          <div className="flex-1 overflow-y-auto py-2 space-y-2.5 min-h-0 pr-1">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
-                <ShoppingBag className="w-10 h-10 mb-2 stroke-[1.5]" />
-                <p className="text-xs font-medium">Cart is currently empty</p>
+              <div className="py-6 sm:py-8 flex flex-col items-center justify-center text-center text-slate-400">
+                <ShoppingBag className="w-9 h-9 mb-1.5 stroke-[1.5]" />
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Cart is currently empty</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Click products or scan barcodes</p>
               </div>
             ) : (
@@ -1208,121 +1294,121 @@ export function POSTerminal() {
                 </div>
               ))
             )}
+
+            {/* Creative Interactive Trade-In / Exchange Section (Inside the scroll area!) */}
+            {!tradeInItem ? (
+              <div
+                onClick={() => setIsTradeInModalOpen(true)}
+                className="my-1.5 p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-amber-500/10 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-amber-950/20 border-2 border-dashed border-emerald-400/90 dark:border-emerald-600/70 hover:border-emerald-500 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/60 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 group relative overflow-hidden select-none"
+              >
+                {/* Background ambient glow effect */}
+                <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-emerald-400/20 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
+
+                <div className="flex items-center justify-between gap-2.5 relative z-10">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs shrink-0 group-hover:scale-110 transition-transform">
+                      <ArrowLeftRight className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-black text-slate-900 dark:text-white tracking-tight">
+                          Customer Device Trade-In
+                        </span>
+                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                          Exchange Credit
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Customer trading in an old phone? Apply instant discount
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-2.5 py-1.5 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1 shrink-0 transition-colors">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Phone</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Active Traded-In Device Card */
+              <div className="my-1.5 p-3 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-amber-500/10 border-2 border-emerald-500 dark:border-emerald-600 shadow-sm relative overflow-hidden animate-in fade-in duration-200">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9.5px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-200/90 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 font-mono">
+                          {tradeInItem.brand}
+                        </span>
+                        <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
+                          {tradeInItem.modelName}
+                        </h4>
+                        {tradeInItem.storage && (
+                          <span className="text-[10px] text-slate-500 font-bold">
+                            ({tradeInItem.storage} {tradeInItem.color || ''})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10.5px] text-slate-600 dark:text-slate-400 flex-wrap">
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                          IMEI: {tradeInItem.imei1}
+                        </span>
+                        {tradeInItem.batteryHealth && (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-100 dark:bg-emerald-950 px-1 rounded text-[9.5px]">
+                            ⚡ {tradeInItem.batteryHealth}%
+                          </span>
+                        )}
+                        <span className="text-[9.5px] px-1 py-0.2 rounded bg-slate-200 dark:bg-dark-card text-slate-800 dark:text-slate-200 font-bold uppercase">
+                          {tradeInItem.conditionGrade?.replace('GRADE_', 'Grade ') || 'Good'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-400 font-mono">
+                      -{formatLKR(tradeInAllowance, false)}
+                    </div>
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsTradeInModalOpen(true)}
+                        className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-300 hover:text-emerald-600 transition-colors cursor-pointer"
+                        title="Edit Device Details or Valuation"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTradeInItem(null)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        title="Remove Trade-In"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Micro-Badge */}
+                <div className="mt-2 pt-1.5 border-t border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between text-[10px] text-emerald-800 dark:text-emerald-300">
+                  <span className="flex items-center gap-1 font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Instant Trade-In credit deducted from bill
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-wider font-extrabold text-emerald-900 dark:text-emerald-200">
+                    VERIFIED & UNLOCKED
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Creative Interactive Trade-In / Exchange Section */}
-          {!tradeInItem ? (
-            <div
-              onClick={() => setIsTradeInModalOpen(true)}
-              className="my-2 p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-amber-500/10 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-amber-950/20 border-2 border-dashed border-emerald-400/90 dark:border-emerald-600/70 hover:border-emerald-500 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/60 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 group relative overflow-hidden select-none"
-            >
-              {/* Background ambient glow effect */}
-              <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-emerald-400/20 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
-
-              <div className="flex items-center justify-between gap-2.5 relative z-10">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs shrink-0 group-hover:scale-110 transition-transform">
-                    <ArrowLeftRight className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-black text-slate-900 dark:text-white tracking-tight">
-                        Customer Device Trade-In
-                      </span>
-                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
-                        Exchange Credit
-                      </span>
-                    </div>
-                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      Customer trading in an old phone? Apply instant discount
-                    </p>
-                  </div>
-                </div>
-
-                <div className="px-2.5 py-1.5 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1 shrink-0 transition-colors">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Phone</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Active Traded-In Device Card */
-            <div className="my-2 p-3 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-amber-500/10 border-2 border-emerald-500 dark:border-emerald-600 shadow-sm relative overflow-hidden animate-in fade-in duration-200">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5">
-                    <Smartphone className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[9.5px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-200/90 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 font-mono">
-                        {tradeInItem.brand}
-                      </span>
-                      <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
-                        {tradeInItem.modelName}
-                      </h4>
-                      {tradeInItem.storage && (
-                        <span className="text-[10px] text-slate-500 font-bold">
-                          ({tradeInItem.storage} {tradeInItem.color || ''})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-[10.5px] text-slate-600 dark:text-slate-400 flex-wrap">
-                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                        IMEI: {tradeInItem.imei1}
-                      </span>
-                      {tradeInItem.batteryHealth && (
-                        <span className="text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-100 dark:bg-emerald-950 px-1 rounded text-[9.5px]">
-                          ⚡ {tradeInItem.batteryHealth}%
-                        </span>
-                      )}
-                      <span className="text-[9.5px] px-1 py-0.2 rounded bg-slate-200 dark:bg-dark-card text-slate-800 dark:text-slate-200 font-bold uppercase">
-                        {tradeInItem.conditionGrade?.replace('GRADE_', 'Grade ') || 'Good'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <div className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-400 font-mono">
-                    -{formatLKR(tradeInAllowance, false)}
-                  </div>
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsTradeInModalOpen(true)}
-                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-300 hover:text-emerald-600 transition-colors cursor-pointer"
-                      title="Edit Device Details or Valuation"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTradeInItem(null)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                      title="Remove Trade-In"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer Micro-Badge */}
-              <div className="mt-2 pt-1.5 border-t border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between text-[10px] text-emerald-800 dark:text-emerald-300">
-                <span className="flex items-center gap-1 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Instant Trade-In credit deducted from bill
-                </span>
-                <span className="font-mono text-[9px] uppercase tracking-wider font-extrabold text-emerald-900 dark:text-emerald-200">
-                  VERIFIED & UNLOCKED
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Cart Summary & Checkout */}
-          <div className="pt-2 border-t border-slate-200 dark:border-dark-border shrink-0 space-y-2">
+          {/* Cart Summary & Checkout (Pinned Cleanly at the Bottom) */}
+          <div className="pt-2 border-t border-slate-200 dark:border-dark-border shrink-0 space-y-2 bg-white dark:bg-dark-card">
             <div className="space-y-1 text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)} items):</span>
@@ -1389,6 +1475,33 @@ export function POSTerminal() {
           </div>
         </div>
       </div>
+
+      {/* Floating Bottom Bar for Mobile (< lg) when browsing catalog */}
+      {mobileTab === 'products' && (cart.length > 0 || tradeInItem) && (
+        <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white p-2.5 sm:p-3 rounded-2xl shadow-2xl flex items-center justify-between border border-slate-700/80 animate-in slide-in-from-bottom-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center shrink-0 shadow-glow-blue">
+              <ShoppingCart className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-xs font-bold block truncate">
+                {cart.reduce((s, i) => s + i.quantity, 0)} Items {tradeInItem ? '+ 1 Trade-In' : ''}
+              </span>
+              <span className="text-sm font-black text-emerald-400 font-mono block">
+                {formatLKR(grandTotal)}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileTab('cart')}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+          >
+            <span>View Cart & Pay</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* MODAL 0: PRODUCT SPECIFICATIONS & DETAILS QUICK VIEW */}
       <Modal
@@ -2178,11 +2291,11 @@ export function POSTerminal() {
           {/* Approved Valuation & Defect Summary */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-dark-surface border border-slate-200 dark:border-dark-border space-y-2.5">
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Approved Trade-In Value (LKR) *
                 </label>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   <span className="text-[10px] text-slate-400">Quick chips:</span>
                   {[25000, 45000, 65000, 85000].map((amt) => (
                     <button
