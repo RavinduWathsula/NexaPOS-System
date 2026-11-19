@@ -10,6 +10,9 @@ export async function getInventoryDashboard() {
     prisma.product.findMany({
       select: {
         id: true,
+        name: true,
+        sku: true,
+        brand: { select: { name: true } },
         isSerialized: true,
         costPrice: true,
         retailPrice: true,
@@ -39,6 +42,7 @@ export async function getInventoryDashboard() {
   let outOfStockCount = 0
   let totalCostValuation = 0
   let totalRetailValuation = 0
+  const lowStockProducts = []
 
   for (const p of products) {
     const qty = p.isSerialized
@@ -55,8 +59,26 @@ export async function getInventoryDashboard() {
 
     if (qty === 0) {
       outOfStockCount++
+      lowStockProducts.push({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        brand: p.brand?.name || 'General',
+        currentStock: 0,
+        reorderLevel: reorder,
+        isSerialized: p.isSerialized,
+      })
     } else if (qty <= reorder) {
       lowStockCount++
+      lowStockProducts.push({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        brand: p.brand?.name || 'General',
+        currentStock: qty,
+        reorderLevel: reorder,
+        isSerialized: p.isSerialized,
+      })
     }
   }
 
@@ -69,6 +91,7 @@ export async function getInventoryDashboard() {
     outOfStockCount,
     damagedCount: damagedDevicesCount,
     totalProductsCount: products.length,
+    lowStockProducts: lowStockProducts.slice(0, 10),
     valuation: {
       totalCostValuation,
       totalRetailValuation,

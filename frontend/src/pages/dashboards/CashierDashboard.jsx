@@ -46,11 +46,11 @@ export function CashierDashboard({ user }) {
       }
 
       // 2. Fetch my recent sales
-      const salesRes = await posAPI.sales({ limit: 5 }).catch(() => null)
-      if (salesRes?.data?.data?.sales) {
-        const sales = salesRes.data.data.sales
+      const salesRes = await posAPI.sales({ limit: 10 }).catch(() => null)
+      const sales = salesRes?.data?.data?.items || salesRes?.data?.data?.sales || (Array.isArray(salesRes?.data?.data) ? salesRes.data.data : [])
+      if (sales.length > 0) {
         setRecentBills(sales)
-        const totalAmount = sales.reduce((sum, s) => sum + (Number(s.finalAmount) || 0), 0)
+        const totalAmount = sales.reduce((sum, s) => sum + (Number(s.totalAmount || s.finalAmount) || 0), 0)
         setStats((prev) => ({
           ...prev,
           billsCount: sales.length,
@@ -259,10 +259,10 @@ export function CashierDashboard({ user }) {
                       {bill.items?.map((i) => i.productName || i.product?.name).join(', ') || 'Sale Item'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" size="sm">{bill.paymentMethod || 'CASH'}</Badge>
+                      <Badge variant="outline" size="sm">{bill.payments?.[0]?.method || bill.paymentMethod || 'CASH'}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-bold text-xs">
-                      {formatLKR(bill.finalAmount || bill.grandTotal || 0)}
+                      {formatLKR(bill.totalAmount || bill.finalAmount || bill.grandTotal || 0)}
                     </TableCell>
                   </TableRow>
                 ))}
