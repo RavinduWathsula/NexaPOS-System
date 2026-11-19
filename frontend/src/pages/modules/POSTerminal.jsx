@@ -35,6 +35,9 @@ import {
   Package,
   ShoppingCart,
   ArrowRight,
+  Zap,
+  Star,
+  MessageSquare,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -48,6 +51,49 @@ import { posAPI, categoriesAPI, brandsAPI } from '@/services/api'
 import { formatLKR } from '@/utils/currency'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/utils/cn'
+
+// Sri Lankan Mobile Operator Detection Helper
+const getSriLankanCarrier = (phone) => {
+  if (!phone) return null
+  const clean = String(phone).replace(/\D/g, '')
+  let prefix = ''
+  if (clean.startsWith('94') && clean.length >= 4) {
+    prefix = '0' + clean.slice(2, 4)
+  } else if (clean.startsWith('0') && clean.length >= 3) {
+    prefix = clean.slice(0, 3)
+  } else if (clean.length >= 2 && !clean.startsWith('0')) {
+    prefix = '0' + clean.slice(0, 2)
+  }
+
+  if (['077', '076', '074'].includes(prefix)) {
+    return { name: 'Dialog', brand: 'Dialog 4G', badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900', ring: 'ring-red-400' }
+  }
+  if (['071', '070'].includes(prefix)) {
+    return { name: 'Mobitel', brand: 'Mobitel 4G', badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900', ring: 'ring-blue-400' }
+  }
+  if (['078', '072'].includes(prefix)) {
+    return { name: 'Hutch', brand: 'Hutch 4G', badge: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-900', ring: 'ring-orange-400' }
+  }
+  if (['075'].includes(prefix)) {
+    return { name: 'Airtel', brand: 'Airtel 4G', badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900', ring: 'ring-rose-400' }
+  }
+  return null
+}
+
+const getCustomerInitials = (name) => {
+  if (!name || !name.trim()) return 'CU'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+const formatSLPhone = (phone) => {
+  if (!phone) return '07X XXX XXXX'
+  const clean = String(phone).replace(/\D/g, '')
+  if (clean.length <= 3) return clean
+  if (clean.length <= 6) return `${clean.slice(0, 3)} ${clean.slice(3)}`
+  return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6, 10)}`
+}
 
 export function POSTerminal() {
   const { user } = useAuthStore()
@@ -982,28 +1028,57 @@ export function POSTerminal() {
           )}
         >
           {/* Customer Selection & Profile Hub */}
-          <div className="pb-3 border-b border-slate-100 dark:border-dark-border shrink-0">
-            <div className="flex items-center justify-between mb-2">
+          <div className="pb-3 border-b border-slate-100 dark:border-dark-border shrink-0 space-y-2">
+            {/* Creative Customer Header Bar */}
+            <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-50/80 dark:bg-dark-surface/60 border border-slate-100 dark:border-dark-border">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setMobileTab('products')}
-                  className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-dark-surface flex items-center gap-1 text-xs font-bold shrink-0"
+                  className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-card flex items-center gap-1 text-xs font-bold shrink-0 transition-colors shadow-2xs"
                   title="Return to products catalog"
                 >
                   <ArrowRight className="w-3.5 h-3.5 rotate-180" />
                   <span>Catalog</span>
                 </button>
-                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 truncate">
-                  <User className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                  <span className="truncate">Customer & Digital Bill</span>
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-brand-600 via-indigo-600 to-purpleAccent-600 text-white flex items-center justify-center shadow-xs shrink-0 ring-2 ring-brand-500/20">
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                        Customer & Digital Bill
+                      </span>
+                      <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        <Sparkles className="w-2.5 h-2.5 text-blue-500" /> SMS e-Bill
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                      Auto-SMS from <span className="font-mono font-semibold text-slate-600 dark:text-slate-300">0713857835</span>
+                    </p>
+                  </div>
+                </div>
               </div>
+
               {selectedCustomer ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Linked
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shadow-2xs">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Linked
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomer(null)
+                      setCustomerSearch('')
+                    }}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-dark-card transition-colors"
+                    title="Unlink and switch to Walk-in customer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
@@ -1020,205 +1095,253 @@ export function POSTerminal() {
                     }
                     setIsCustomerModalOpen(true)
                   }}
-                  className="text-[10px] font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 shrink-0"
+                  className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purpleAccent-600 hover:from-brand-700 hover:to-purpleAccent-700 text-white text-xs font-extrabold shadow-sm shadow-blue-500/25 hover:shadow-md hover:shadow-blue-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all shrink-0 cursor-pointer"
                 >
-                  <UserPlus className="w-3 h-3" />
-                  + New
+                  <UserPlus className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
+                  <span>+ New Customer</span>
+                  <span className="flex h-1.5 w-1.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-300 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-200"></span>
+                  </span>
                 </button>
               )}
             </div>
 
             {selectedCustomer ? (
               /* SELECTED CUSTOMER PROFILE CARD */
-              <div className="p-2.5 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/60 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/60 shadow-xs">
-                <div className="flex items-start justify-between gap-2">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/60 to-purple-50/40 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-purple-950/20 border border-blue-200 dark:border-blue-900/60 shadow-sm relative overflow-hidden">
+                <div className="flex items-start justify-between gap-2 relative z-10">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                      {selectedCustomer.name
-                        ? selectedCustomer.name
-                            .split(' ')
-                            .map((w) => w[0])
-                            .slice(0, 2)
-                            .join('')
-                            .toUpperCase()
-                        : 'CU'}
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purpleAccent-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-blue-400/40">
+                        {getCustomerInitials(selectedCustomer.name)}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-dark-card animate-pulse" />
                     </div>
+
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        <span className="text-xs font-black text-slate-900 dark:text-white truncate">
                           {selectedCustomer.name}
                         </span>
-                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        <span className="text-[9px] uppercase font-black px-1.5 py-0.2 rounded-md bg-blue-600 text-white shadow-2xs">
                           {selectedCustomer.loyaltyTier || 'STANDARD'}
                         </span>
+                        {getSriLankanCarrier(selectedCustomer.phone) && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${getSriLankanCarrier(selectedCustomer.phone).badge}`}>
+                            {getSriLankanCarrier(selectedCustomer.phone).brand}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          <strong className="font-mono text-slate-800 dark:text-slate-200">
-                            {selectedCustomer.phone}
-                          </strong>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                        <span className="flex items-center gap-1 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          <Phone className="w-3 h-3 text-brand-500" />
+                          {formatSLPhone(selectedCustomer.phone)}
                         </span>
                         <span>•</span>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                          SMS Active
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" /> SMS Linked
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCustomer(null)
-                        setCustomerSearch('')
-                      }}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-dark-surface transition-colors"
-                      title="Switch to Walk-in customer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomer(null)
+                      setCustomerSearch('')
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-dark-surface transition-colors"
+                    title="Unlink and switch to Walk-in customer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
 
-                <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                  <div className="flex items-center gap-2">
+                <div className="mt-2.5 pt-2 border-t border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5">
                     {selectedCustomer.nic ? (
-                      <span className="px-1.5 py-0.5 rounded bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border font-mono font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="px-1.5 py-0.5 rounded bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border font-mono font-bold text-slate-700 dark:text-slate-300">
                         NIC: {selectedCustomer.nic}
                       </span>
                     ) : (
                       <span className="text-slate-400 dark:text-slate-500 italic">
-                        No NIC provided (Walk-in)
+                        Walk-in (No NIC)
                       </span>
                     )}
                   </div>
-                  <span className="text-blue-600 dark:text-blue-400 font-medium">
-                    Hotline: 0713857835
+                  <span className="font-semibold text-brand-600 dark:text-brand-400 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" /> SMS Sender: 0713857835
                   </span>
                 </div>
               </div>
             ) : (
               /* CUSTOMER SEARCH & SELECTION (WALK-IN MODE) */
-              <div className="relative" ref={customerDropdownRef}>
-                <div className="relative flex items-center">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={customerSearch}
-                    onChange={(e) => {
-                      setCustomerSearch(e.target.value)
-                      setIsCustomerDropdownOpen(true)
-                    }}
-                    onFocus={() => setIsCustomerDropdownOpen(true)}
-                    placeholder="Search phone (07X...), name, or NIC..."
-                    className="w-full pl-8 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  {customerSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomerSearch('')}
-                      className="absolute right-2.5 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+              <div className="space-y-1.5">
+                <div className="relative" ref={customerDropdownRef}>
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={(e) => {
+                        setCustomerSearch(e.target.value)
+                        setIsCustomerDropdownOpen(true)
+                      }}
+                      onFocus={() => setIsCustomerDropdownOpen(true)}
+                      placeholder="Search phone (07X...), name, or NIC..."
+                      className="w-full pl-8 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                    />
+                    {customerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerSearch('')}
+                        className="absolute right-2.5 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Floating Customer Suggestions Dropdown */}
+                  {isCustomerDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-xl shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto">
+                      {/* Default Walk-in Option */}
+                      <div
+                        onClick={() => {
+                          setSelectedCustomer(null)
+                          setIsCustomerDropdownOpen(false)
+                        }}
+                        className="p-2.5 border-b border-slate-100 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-dark-surface cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-dark-surface flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                            WI
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                              Walk-in Customer (Cash)
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              Standard anonymous receipt • No phone registered
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 dark:bg-dark-surface px-1.5 py-0.5 rounded">Default</span>
+                      </div>
+
+                      {/* Filtered Customer Matches */}
+                      {filteredCustomers.length > 0 ? (
+                        filteredCustomers.map((c) => {
+                          const carrier = getSriLankanCarrier(c.phone)
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                setSelectedCustomer(c)
+                                setIsCustomerDropdownOpen(false)
+                                setCustomerSearch('')
+                                showToast(`Selected customer ${c.name}`)
+                              }}
+                              className="p-2.5 border-b border-slate-100 dark:border-dark-border hover:bg-blue-50/60 dark:hover:bg-blue-950/30 cursor-pointer flex items-center justify-between transition-colors group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-600 to-indigo-600 text-white flex items-center justify-center text-[11px] font-black shrink-0">
+                                  {c.name ? c.name[0].toUpperCase() : 'C'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                      {c.name}
+                                    </span>
+                                    <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                      {c.loyaltyTier || 'STANDARD'}
+                                    </span>
+                                    {carrier && (
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${carrier.badge}`}>
+                                        {carrier.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                                    <span>{formatSLPhone(c.phone)}</span>
+                                    {c.nic && (
+                                      <span className="text-[10px] text-slate-400">NIC: {c.nic}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold text-brand-600 dark:text-brand-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                                Select →
+                              </span>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="p-3.5 bg-gradient-to-b from-slate-50 to-blue-50/40 dark:from-dark-surface dark:to-blue-950/30 text-center">
+                          <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-2">
+                            <UserPlus className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">
+                            No customer found matching "{customerSearch}"
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-xs mx-auto">
+                            Customer at the counter? Fast register and link digital bill in 5 seconds.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const isDigits = /^\d+$/.test(customerSearch.trim())
+                              if (isDigits) {
+                                setCustPhone(customerSearch.trim())
+                                setCustName('')
+                              } else {
+                                setCustName(customerSearch.trim())
+                                setCustPhone('')
+                              }
+                              setIsCustomerDropdownOpen(false)
+                              setIsCustomerModalOpen(true)
+                            }}
+                            className="mt-3 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Register "{customerSearch}" Now</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                {/* Floating Customer Suggestions Dropdown */}
-                {isCustomerDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-xl shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
-                    {/* Default Walk-in Option */}
-                    <div
+                {/* 1-Tap Sri Lankan Mobile Prefix Chips */}
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
+                  <span className="text-[10px] text-slate-400 font-semibold shrink-0 flex items-center gap-0.5">
+                    <Zap className="w-2.5 h-2.5 text-amber-500" /> 1-Tap:
+                  </span>
+                  {[
+                    { prefix: '077', carrier: 'Dialog', color: 'hover:border-red-400 hover:text-red-600' },
+                    { prefix: '071', carrier: 'Mobitel', color: 'hover:border-blue-400 hover:text-blue-600' },
+                    { prefix: '076', carrier: 'Dialog', color: 'hover:border-red-400 hover:text-red-600' },
+                    { prefix: '078', carrier: 'Hutch', color: 'hover:border-orange-400 hover:text-orange-600' },
+                    { prefix: '075', carrier: 'Airtel', color: 'hover:border-rose-400 hover:text-rose-600' },
+                    { prefix: '070', carrier: 'Mobitel', color: 'hover:border-blue-400 hover:text-blue-600' },
+                  ].map((item) => (
+                    <button
+                      key={item.prefix}
+                      type="button"
                       onClick={() => {
-                        setSelectedCustomer(null)
-                        setIsCustomerDropdownOpen(false)
+                        setCustPhone(item.prefix)
+                        setCustName('')
+                        setIsCustomerModalOpen(true)
                       }}
-                      className="p-2 border-b border-slate-100 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-dark-surface cursor-pointer flex items-center justify-between"
+                      className={`px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-dark-border font-mono font-bold shrink-0 transition-all ${item.color} active:scale-95`}
+                      title={`Fast register customer with prefix ${item.prefix} (${item.carrier})`}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-dark-surface flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                          WI
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                            Walk-in Customer (Cash)
-                          </span>
-                          <span className="text-[10px] text-slate-400 block">
-                            No registered details required
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Default</span>
-                    </div>
-
-                    {/* Filtered Customer Matches */}
-                    {filteredCustomers.length > 0 ? (
-                      filteredCustomers.map((c) => (
-                        <div
-                          key={c.id}
-                          onClick={() => {
-                            setSelectedCustomer(c)
-                            setIsCustomerDropdownOpen(false)
-                            setCustomerSearch('')
-                            showToast(`Selected customer ${c.name}`)
-                          }}
-                          className="p-2 border-b border-slate-100 dark:border-dark-border hover:bg-blue-50/60 dark:hover:bg-blue-950/30 cursor-pointer flex items-center justify-between transition-colors"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 flex items-center justify-center text-[11px] font-extrabold shrink-0">
-                              {c.name ? c.name[0].toUpperCase() : 'C'}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                  {c.name}
-                                </span>
-                                {c.nic && (
-                                  <span className="text-[9px] bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-300 px-1 rounded font-mono">
-                                    {c.nic}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 block">
-                                {c.phone}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 shrink-0">
-                            Select
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-3 text-center">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          No customer found matching "{customerSearch}"
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const isDigits = /^\d+$/.test(customerSearch.trim())
-                            if (isDigits) {
-                              setCustPhone(customerSearch.trim())
-                              setCustName('')
-                            } else {
-                              setCustName(customerSearch.trim())
-                              setCustPhone('')
-                            }
-                            setIsCustomerDropdownOpen(false)
-                            setIsCustomerModalOpen(true)
-                          }}
-                          className="mt-2 text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          Register "{customerSearch}" as New Customer
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      {item.prefix}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -2055,63 +2178,208 @@ export function POSTerminal() {
         <ThermalReceipt sale={completedSale} onClose={() => setIsReceiptOpen(false)} />
       </Modal>
 
-      {/* MODAL 4: QUICK CUSTOMER REGISTRATION */}
+      {/* MODAL 4: CREATIVE QUICK CUSTOMER REGISTRATION & DIGITAL BILL PASS */}
       <Modal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
-        title="Register Customer to Active Bill"
-        description="Attach customer profile to this invoice for digital bill SMS dispatch, warranty certification, and sales history."
-        maxWidth="md"
+        title="Register Customer & Digital Bill Pass"
+        description="Instant cellular SMS e-Bill dispatch (0713857835), warranty certification, and customer loyalty profile."
+        maxWidth="lg"
       >
-        <form onSubmit={handleQuickCustomerSubmit} className="space-y-3.5">
-          {/* Information Notice */}
-          <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
-            <Smartphone className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-            <div className="text-[11px] leading-relaxed">
-              <strong>Official Hotline: 0713857835.</strong> Customer mobile number will receive the digital invoice and warranty message via normal SMS text message. NIC is optional for walk-in customers.
+        <form onSubmit={handleQuickCustomerSubmit} className="space-y-4 pt-1">
+          {/* Hero: Interactive Live Virtual Customer Pass Preview */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 border border-indigo-500/30 shadow-xl">
+            {/* Ambient Glows */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Top Pass Header */}
+            <div className="flex items-center justify-between mb-3 relative z-10">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-md bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-cyan-300" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                  NexaPOS Digital Customer Pass
+                </span>
+              </div>
+              <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-amber-600/30 text-amber-300 border border-amber-400/40 flex items-center gap-1">
+                <Star className="w-2.5 h-2.5 fill-amber-300" /> Standard Tier
+              </span>
+            </div>
+
+            {/* Profile Avatar & Details */}
+            <div className="flex items-center gap-3.5 relative z-10">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-purpleAccent-600 text-white font-black text-base flex items-center justify-center shadow-lg ring-2 ring-white/20">
+                  {getCustomerInitials(custName)}
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-900 animate-pulse" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-black text-white truncate">
+                  {custName.trim() || 'Enter Customer Full Name...'}
+                </h4>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-cyan-300 flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-cyan-400" />
+                    {formatSLPhone(custPhone)}
+                  </span>
+                  {getSriLankanCarrier(custPhone) ? (
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-2xs ${getSriLankanCarrier(custPhone).badge}`}>
+                      ● {getSriLankanCarrier(custPhone).brand}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Sri Lankan Mobile (+94)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Pass Details */}
+            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] relative z-10 text-slate-300">
+              <span className="flex items-center gap-1 text-[10px] text-slate-300">
+                NIC: <strong className="font-mono text-white">{custNic.trim() || 'Walk-in (None)'}</strong>
+              </span>
+              <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Auto-SMS Sender: 0713857835
+              </span>
             </div>
           </div>
 
-          <Input
-            label="Customer Full Name *"
-            value={custName}
-            onChange={(e) => setCustName(e.target.value)}
-            placeholder="e.g. Kasun Jayasuriya"
-            required
-            autoFocus
-          />
+          {/* Simulated Live SMS Bubble */}
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-xs">
+            <div className="flex items-center justify-between mb-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1">
+                <MessageSquare className="w-3 h-3 text-brand-600" />
+                Live SMS Preview (To Customer's Mobile):
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Normal Cellular SMS</span>
+            </div>
+            <div className="p-2 rounded-lg bg-white dark:bg-dark-card border border-slate-200/80 dark:border-dark-border/80 text-[11px] font-mono text-slate-700 dark:text-slate-300 shadow-2xs">
+              "NexaPOS: Dear {custName.trim() || 'Customer'}, thank you! Invoice #INV-... for Rs. {grandTotal > 0 ? grandTotal.toLocaleString() : '0.00'} is confirmed. Warranty cert active. Inquiries: 0713857835. www.nexapos.lk"
+            </div>
+          </div>
 
-          <Input
-            label="Customer Mobile Number * (Normal SMS Delivery)"
-            value={custPhone}
-            onChange={(e) => setCustPhone(e.target.value)}
-            placeholder="e.g. 0771234567 or 0713857835"
-            required
-          />
+          {/* Form Inputs */}
+          <div className="space-y-3">
+            <Input
+              label="Customer Full Name *"
+              value={custName}
+              onChange={(e) => setCustName(e.target.value)}
+              placeholder="e.g. Kasun Jayasuriya"
+              required
+              autoFocus
+            />
 
-          <Input
-            label="NIC / National ID (Optional — Leave blank if walk-in)"
-            value={custNic}
-            onChange={(e) => setCustNic(e.target.value)}
-            placeholder="e.g. 19982341234V (Optional)"
-          />
+            {/* Mobile Number with 1-Tap Sri Lankan Prefix Row */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-brand-600" />
+                  Customer Mobile Number * (Normal SMS Delivery)
+                </label>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-slate-400 font-semibold hidden sm:inline">1-Tap Prefix:</span>
+                  {[
+                    { prefix: '077', label: '077 Dialog' },
+                    { prefix: '071', label: '071 Mobitel' },
+                    { prefix: '076', label: '076 Dialog' },
+                    { prefix: '078', label: '078 Hutch' },
+                    { prefix: '075', label: '075 Airtel' },
+                    { prefix: '070', label: '070 Mobitel' },
+                  ].map((item) => (
+                    <button
+                      key={item.prefix}
+                      type="button"
+                      onClick={() => {
+                        const currentDigits = custPhone.replace(/\D/g, '')
+                        const rest = currentDigits.length >= 3 ? currentDigits.slice(3) : ''
+                        setCustPhone(item.prefix + rest)
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-brand-50 dark:bg-dark-surface dark:hover:bg-brand-950/40 text-slate-700 dark:text-slate-300 hover:text-brand-600 border border-slate-200 dark:border-dark-border font-mono font-bold text-[10px] transition-colors"
+                    >
+                      {item.prefix}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                value={custPhone}
+                onChange={(e) => setCustPhone(e.target.value)}
+                placeholder="e.g. 0771234567 or 0713857835"
+                required
+              />
+              <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
+                <span>Delivered via standard cellular SMS (Strictly NO WhatsApp)</span>
+                <span className="font-mono">
+                  {custPhone.replace(/\D/g, '').length}/10 digits
+                  {custPhone.replace(/\D/g, '').length === 10 && (
+                    <span className="text-emerald-500 font-bold ml-1">✓ Valid</span>
+                  )}
+                </span>
+              </div>
+            </div>
 
-          <Input
-            label="Email Address (Optional)"
-            type="email"
-            value={custEmail}
-            onChange={(e) => setCustEmail(e.target.value)}
-            placeholder="kasun@gmail.com"
-          />
+            {/* NIC & Email in 2 columns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Input
+                  label="NIC / National ID (Optional for Walk-ins)"
+                  value={custNic}
+                  onChange={(e) => setCustNic(e.target.value)}
+                  placeholder="e.g. 19982341234V (Optional)"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Optional for standard sales, recommended for Trade-Ins
+                </span>
+              </div>
+              <div>
+                <Input
+                  label="Email Address (Optional)"
+                  type="email"
+                  value={custEmail}
+                  onChange={(e) => setCustEmail(e.target.value)}
+                  placeholder="kasun@gmail.com"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Optional backup for PDF invoices
+                </span>
+              </div>
+            </div>
 
-          <Input
-            label="Address / City (Optional)"
-            value={custAddress}
-            onChange={(e) => setCustAddress(e.target.value)}
-            placeholder="e.g. Colombo 03, Kandy, Galle"
-          />
+            {/* City / Address with 1-click popular city chips */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Address / City (Optional)
+                </label>
+                <div className="flex items-center gap-1 text-[10px] overflow-x-auto no-scrollbar">
+                  {['Colombo', 'Kandy', 'Galle', 'Gampaha', 'Kurunegala', 'Negombo', 'Jaffna'].map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      onClick={() => setCustAddress(city)}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-dark-surface hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-medium transition-colors"
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                value={custAddress}
+                onChange={(e) => setCustAddress(e.target.value)}
+                placeholder="e.g. Colombo 03, Kandy, Galle..."
+              />
+            </div>
+          </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-dark-border">
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-dark-border">
             <Button
               variant="outline"
               size="sm"
@@ -2127,8 +2395,15 @@ export function POSTerminal() {
             >
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={custSubmitting} className="font-bold">
-              Save & Link Customer
+            <Button
+              variant="primary"
+              size="sm"
+              type="submit"
+              isLoading={custSubmitting}
+              className="bg-gradient-to-r from-brand-600 via-indigo-600 to-purpleAccent-600 hover:from-brand-700 hover:to-purpleAccent-700 text-white font-extrabold shadow-md flex items-center gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
+              <span>Save & Link Customer</span>
             </Button>
           </div>
         </form>

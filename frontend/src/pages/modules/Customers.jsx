@@ -17,6 +17,9 @@ import {
   FileText,
   DollarSign,
   CheckCircle2,
+  Sparkles,
+  Star,
+  Zap,
 } from 'lucide-react'
 import { customersAPI } from '@/services/api'
 import { Button } from '@/components/ui/Button'
@@ -24,6 +27,42 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { formatLKR } from '@/utils/currency'
+
+// Sri Lankan Mobile Operator Detection Helper
+const getSriLankanCarrier = (phone) => {
+  if (!phone) return null
+  const clean = String(phone).replace(/\D/g, '')
+  let prefix = ''
+  if (clean.startsWith('94') && clean.length >= 4) {
+    prefix = '0' + clean.slice(2, 4)
+  } else if (clean.startsWith('0') && clean.length >= 3) {
+    prefix = clean.slice(0, 3)
+  } else if (clean.length >= 2 && !clean.startsWith('0')) {
+    prefix = '0' + clean.slice(0, 2)
+  }
+
+  if (['077', '076', '074'].includes(prefix)) {
+    return { name: 'Dialog', brand: 'Dialog 4G', badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900' }
+  }
+  if (['071', '070'].includes(prefix)) {
+    return { name: 'Mobitel', brand: 'Mobitel 4G', badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900' }
+  }
+  if (['078', '072'].includes(prefix)) {
+    return { name: 'Hutch', brand: 'Hutch 4G', badge: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-900' }
+  }
+  if (['075'].includes(prefix)) {
+    return { name: 'Airtel', brand: 'Airtel 4G', badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900' }
+  }
+  return null
+}
+
+const getCustomerInitials = (firstName, lastName) => {
+  const f = firstName?.trim() || ''
+  const l = lastName?.trim() || ''
+  if (!f && !l) return 'CU'
+  if (f && l) return (f[0] + l[0]).toUpperCase()
+  return f.slice(0, 2).toUpperCase()
+}
 
 export function Customers() {
   const [customers, setCustomers] = useState([])
@@ -442,17 +481,78 @@ export function Customers() {
       <Modal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingCustomer ? 'Edit Customer' : 'Register New Customer'}
-        description="Fill in client contact information for warranty registration and billing."
+        title={editingCustomer ? 'Edit Customer Profile' : 'Register New Customer Pass'}
+        description="Attach contact details for digital cellular SMS dispatch (Hotline: 0713857835), warranty certification, and client history."
         maxWidth="lg"
       >
-        <form onSubmit={handleSubmitForm} className="space-y-4 pt-2">
+        <form onSubmit={handleSubmitForm} className="space-y-4 pt-1">
           {formError && (
             <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-600 dark:bg-rose-950/40 dark:text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {formError}
             </div>
           )}
+
+          {/* Live Virtual Customer Smart Card Preview */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 border border-indigo-500/30 shadow-xl">
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-center justify-between mb-3 relative z-10">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-md bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-cyan-300" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                  NexaPOS Customer Account
+                </span>
+              </div>
+              <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-amber-600/30 text-amber-300 border border-amber-400/40 flex items-center gap-1">
+                <Star className="w-2.5 h-2.5 fill-amber-300" /> Standard Tier
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3.5 relative z-10">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-purpleAccent-600 text-white font-black text-base flex items-center justify-center shadow-lg ring-2 ring-white/20">
+                  {getCustomerInitials(formData.firstName, formData.lastName)}
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-900 animate-pulse" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-black text-white truncate">
+                  {formData.firstName || formData.lastName
+                    ? `${formData.firstName} ${formData.lastName}`.trim()
+                    : 'Customer Full Name'}
+                </h4>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-cyan-300 flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-cyan-400" />
+                    {formData.phone || '07X XXX XXXX'}
+                  </span>
+                  {getSriLankanCarrier(formData.phone) ? (
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-2xs ${getSriLankanCarrier(formData.phone).badge}`}>
+                      ● {getSriLankanCarrier(formData.phone).brand}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Sri Lankan Mobile (+94)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] relative z-10 text-slate-300">
+              <span className="flex items-center gap-1 text-[10px] text-slate-300 truncate">
+                City: <strong className="font-medium text-white">{formData.city || 'Not specified'}</strong>
+              </span>
+              <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 shrink-0">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" /> SMS Dispatch: 0713857835
+              </span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -480,19 +580,54 @@ export function Customers() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Phone Number *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-brand-600" />
+                  Phone Number *
+                </label>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-slate-400 font-semibold hidden sm:inline">1-Tap:</span>
+                  {[
+                    { prefix: '077', label: '077' },
+                    { prefix: '071', label: '071' },
+                    { prefix: '076', label: '076' },
+                    { prefix: '078', label: '078' },
+                    { prefix: '075', label: '075' },
+                  ].map((item) => (
+                    <button
+                      key={item.prefix}
+                      type="button"
+                      onClick={() => {
+                        const currentDigits = formData.phone.replace(/\D/g, '')
+                        const rest = currentDigits.length >= 3 ? currentDigits.slice(3) : ''
+                        setFormData({ ...formData, phone: item.prefix + rest })
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-brand-50 dark:bg-dark-surface dark:hover:bg-brand-950/40 text-slate-700 dark:text-slate-300 hover:text-brand-600 border border-slate-200 dark:border-dark-border font-mono font-bold text-[10px] transition-colors"
+                    >
+                      {item.prefix}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <Input
                 required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="0771234567"
               />
+              <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
+                <span>Normal cellular SMS delivery (No WhatsApp)</span>
+                <span className="font-mono">
+                  {formData.phone.replace(/\D/g, '').length}/10 digits
+                  {formData.phone.replace(/\D/g, '').length === 10 && (
+                    <span className="text-emerald-500 font-bold ml-1">✓ Valid</span>
+                  )}
+                </span>
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Email Address
+                Email Address (Optional)
               </label>
               <Input
                 type="email"
@@ -515,9 +650,23 @@ export function Customers() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                City / Town
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  City / Town
+                </label>
+                <div className="flex items-center gap-1 text-[10px] overflow-x-auto no-scrollbar">
+                  {['Colombo', 'Kandy', 'Galle', 'Gampaha', 'Kurunegala', 'Negombo'].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, city: c })}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-dark-surface hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-medium transition-colors"
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <Input
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
